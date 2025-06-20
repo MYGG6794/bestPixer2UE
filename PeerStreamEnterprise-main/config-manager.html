@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>bestPixer2UE 配置管理</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .config-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #f0f0f0;
+        }
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .btn-danger {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+        }
+        .btn-info {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: none;
+        }
+        .success {
+            background: rgba(76, 175, 80, 0.3);
+            border: 1px solid #4CAF50;
+        }
+        .error {
+            background: rgba(244, 67, 54, 0.3);
+            border: 1px solid #f44336;
+        }
+        .program-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        .quick-access {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .access-link {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        .access-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎮 bestPixer2UE 配置管理</h1>
+            <p>动态配置UE程序路径和参数</p>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div class="config-section">
+            <h3>📝 添加新的UE程序配置</h3>
+            <form id="configForm">
+                <div class="form-group">
+                    <label for="name">程序名称:</label>
+                    <input type="text" id="name" name="name" placeholder="例如: BoaoPanda" required>
+                </div>
+                <div class="form-group">
+                    <label for="path">UE程序路径:</label>
+                    <input type="text" id="path" name="path" placeholder="例如: D:\Projects\BoAo_zhongyuan0612\250519Boao\BoaoPanda.exe" required>
+                </div>
+                <div class="form-group">
+                    <label for="urlprefix">URL前缀:</label>
+                    <input type="text" id="urlprefix" name="urlprefix" placeholder="例如: boao" required>
+                </div>
+                <div class="form-group">
+                    <label for="gpumemory">GPU内存 (GB):</label>
+                    <input type="number" id="gpumemory" name="gpumemory" value="8" min="1" max="32">
+                </div>
+                <div class="form-group">
+                    <label for="param">启动参数 (可选):</label>
+                    <input type="text" id="param" name="param" placeholder="例如: -windowed -ResX=1920 -ResY=1080">
+                </div>
+                <button type="submit">💾 保存配置</button>
+                <button type="button" onclick="loadConfig()">🔄 刷新配置</button>
+            </form>
+        </div>
+
+        <div class="config-section">
+            <h3>📋 当前UE程序列表</h3>
+            <div id="programList">
+                <p>正在加载配置...</p>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>🚀 快速访问</h3>
+            <div class="quick-access" id="quickAccess">
+                <!-- 动态生成访问链接 -->
+            </div>
+        </div>
+
+        <div class="config-section">
+            <h3>🔧 服务控制</h3>
+            <button onclick="restartSignalServer()" class="btn-info">🔄 重启信令服务器</button>
+            <button onclick="openMainInterface()" class="btn-info">🏠 打开主界面</button>
+            <button onclick="openVideoClient()" class="btn-info">📺 打开视频客户端</button>
+        </div>
+    </div>
+
+    <script>
+        // 加载当前配置
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                displayPrograms(config.ueprogram || []);
+                generateQuickAccess(config.ueprogram || []);
+            } catch (error) {
+                showStatus('error', '加载配置失败: ' + error.message);
+            }
+        }
+
+        // 显示程序列表
+        function displayPrograms(programs) {
+            const programList = document.getElementById('programList');
+            if (programs.length === 0) {
+                programList.innerHTML = '<p>暂无UE程序配置</p>';
+                return;
+            }
+
+            programList.innerHTML = programs.map((program, index) => `
+                <div class="program-item">
+                    <h4>🎮 ${program.name}</h4>
+                    <p><strong>路径:</strong> ${program.path}</p>
+                    <p><strong>URL前缀:</strong> ${program.urlprefix}</p>
+                    <p><strong>GPU内存:</strong> ${program.gpumemory}GB</p>
+                    <p><strong>参数:</strong> ${program.param || '无'}</p>
+                    <button onclick="testProgram('${program.urlprefix}')" class="btn-info">🧪 测试启动</button>
+                    <button onclick="deleteProgram(${index})" class="btn-danger">🗑️ 删除</button>
+                </div>
+            `).join('');
+        }
+
+        // 生成快速访问链接
+        function generateQuickAccess(programs) {
+            const quickAccess = document.getElementById('quickAccess');
+            const links = programs.map(program => 
+                `<a href="/${program.urlprefix}" class="access-link" target="_blank">🚀 ${program.name}</a>`
+            ).join('');
+            
+            quickAccess.innerHTML = links + 
+                '<a href="/" class="access-link" target="_blank">🏠 主页</a>' +
+                '<a href="/video.html" class="access-link" target="_blank">📺 视频客户端</a>';
+        }
+
+        // 保存配置
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const newProgram = {
+                name: formData.get('name'),
+                path: formData.get('path'),
+                urlprefix: formData.get('urlprefix'),
+                gpumemory: parseInt(formData.get('gpumemory')),
+                preload: false,
+                param: formData.get('param') || ''
+            };
+
+            try {
+                const response = await fetch('/api/config/add-program', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(newProgram)
+                });
+
+                if (response.ok) {
+                    showStatus('success', '配置保存成功！');
+                    e.target.reset();
+                    loadConfig();
+                } else {
+                    showStatus('error', '保存失败: ' + await response.text());
+                }
+            } catch (error) {
+                showStatus('error', '保存失败: ' + error.message);
+            }
+        });
+
+        // 显示状态消息
+        function showStatus(type, message) {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = message;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 5000);
+        }
+
+        // 测试程序启动
+        function testProgram(urlprefix) {
+            window.open(`/${urlprefix}`, '_blank');
+        }
+
+        // 删除程序配置
+        async function deleteProgram(index) {
+            if (confirm('确定要删除这个配置吗？')) {
+                try {
+                    const response = await fetch(`/api/config/delete-program/${index}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (response.ok) {
+                        showStatus('success', '配置删除成功！');
+                        loadConfig();
+                    } else {
+                        showStatus('error', '删除失败: ' + await response.text());
+                    }
+                } catch (error) {
+                    showStatus('error', '删除失败: ' + error.message);
+                }
+            }
+        }
+
+        // 重启信令服务器
+        async function restartSignalServer() {
+            try {
+                const response = await fetch('/api/restart', { method: 'POST' });
+                if (response.ok) {
+                    showStatus('success', '信令服务器重启成功！');
+                } else {
+                    showStatus('error', '重启失败');
+                }
+            } catch (error) {
+                showStatus('error', '重启失败: ' + error.message);
+            }
+        }
+
+        // 打开主界面
+        function openMainInterface() {
+            window.open('/', '_blank');
+        }
+
+        // 打开视频客户端
+        function openVideoClient() {
+            window.open('/video.html', '_blank');
+        }
+
+        // 页面加载时自动加载配置
+        window.addEventListener('DOMContentLoaded', loadConfig);
+    </script>
+</body>
+</html>

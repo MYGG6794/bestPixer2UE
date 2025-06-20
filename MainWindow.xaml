@@ -1,0 +1,640 @@
+<Window x:Class="bestPixer2UE.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="bestPixer2UE - 增强版像素流服务器" 
+        Height="750" Width="1100"
+        MinHeight="650" MinWidth="900"
+        WindowStartupLocation="CenterScreen">
+    
+    <Window.Resources>
+        <Style x:Key="StatusIndicator" TargetType="Ellipse">
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="Height" Value="12"/>
+            <Setter Property="Margin" Value="5,0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding}" Value="True">
+                    <Setter Property="Fill" Value="LimeGreen"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding}" Value="False">
+                    <Setter Property="Fill" Value="Red"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,10,0,5"/>
+            <Setter Property="Foreground" Value="#2D3748"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>        <!-- Header -->
+        <Border Grid.Row="0" Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="bestPixer2UE 增强版像素流服务器" FontSize="24" FontWeight="Bold" Foreground="#2D3748"/>
+                    <TextBlock Text="支持多端口的 UE 像素流解决方案 | 企业级管理与监控平台" FontSize="14" Foreground="#718096"/>
+                </StackPanel>
+                
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnCreateLogPackage" Content="生成日志包" Click="BtnCreateLogPackage_Click" Background="#38A169" Margin="5,0"/>
+                    <Button x:Name="BtnOpenLogFolder" Content="打开日志" Click="BtnOpenLogFolder_Click" Background="#3182CE" Margin="5,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>        <!-- Main Content -->
+        <TabControl Grid.Row="1" Background="White">
+              <!-- Configuration Tab with nested tabs -->
+            <TabItem Header="📋 配置管理" FontSize="14">
+                <TabControl Margin="10">
+                    
+                    <!-- Basic Configuration Sub-Tab -->
+                    <TabItem Header="基础设置" FontSize="12">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <Grid Margin="20">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                
+                                <!-- Instructions -->
+                                <Border Grid.Row="0" Background="#EBF8FF" BorderBrush="#3182CE" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,0,0,20">
+                                    <StackPanel>
+                                        <TextBlock Text="📖 基础配置说明" FontSize="16" FontWeight="Bold" Foreground="#2B6CB0" Margin="0,0,0,10"/>
+                                        <TextBlock TextWrapping="Wrap" Foreground="#2D3748" LineHeight="22">
+                                            <Run Text="1. "/>
+                                            <Run Text="配置 UE 可执行文件路径：" FontWeight="Bold"/>
+                                            <Run Text="选择您的 UE 编辑器可执行文件 (UnrealEditor.exe) 或打包后的游戏程序"/>
+                                            <LineBreak/>
+                                            <Run Text="2. "/>
+                                            <Run Text="设置项目文件路径：" FontWeight="Bold"/>
+                                            <Run Text="选择您的 UE 项目文件 (.uproject)"/>
+                                            <LineBreak/>
+                                            <Run Text="3. "/>
+                                            <Run Text="配置端口号：" FontWeight="Bold"/>
+                                            <Run Text="确保端口未被占用。"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                                
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Left Column -->
+                                    <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                        <TextBlock Text="🎮 UE 引擎配置" Style="{StaticResource SectionHeader}"/>
+                                        
+                                        <Label Content="UE 可执行文件路径:" FontWeight="SemiBold"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtUEPath" Grid.Column="0" ToolTip="选择 UnrealEditor.exe 或打包后的游戏程序"/>
+                                            <Button x:Name="BtnBrowseUE" Grid.Column="1" Content="浏览..." Click="BtnBrowseUE_Click" Margin="5,0,0,0"/>
+                                        </Grid>
+                                        
+                                        <Label Content="项目文件路径 (可选):" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtProjectPath" Grid.Column="0" ToolTip="选择您的 .uproject 项目文件（打包程序无需填写）"/>
+                                            <Button x:Name="BtnBrowseProject" Grid.Column="1" Content="浏览..." Click="BtnBrowseProject_Click" Margin="5,0,0,0"/>
+                                        </Grid>
+
+                                        <TextBlock Text="🌐 基础端口配置" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                        
+                                        <Label Content="主信令端口 (PORT):" FontWeight="SemiBold"/>
+                                        <TextBox x:Name="TxtPORT" ToolTip="PeerStreamEnterprise主信令端口，默认 11188" TextChanged="OnConfigChanged"/>
+                                        
+                                        <Label Content="UE WebSocket 端口:" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                        <TextBox x:Name="TxtUEWebSocketPort" ToolTip="用于与 UE 引擎通信的 WebSocket 端口，默认 8081" TextChanged="OnConfigChanged"/>
+                                        
+                                        <Label Content="控制 API 端口:" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                        <TextBox x:Name="TxtControlAPIPort" ToolTip="用于外部控制接口的端口，默认 8082" TextChanged="OnConfigChanged"/>
+                                        
+                                        <TextBlock Text="⚙️ 高级选项" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                        <CheckBox x:Name="ChkAutoStart" Content="程序启动时自动启动服务" Margin="5,10" Checked="OnConfigChanged" Unchecked="OnConfigChanged"/>
+                                        <CheckBox x:Name="ChkDetailedLogging" Content="启用详细日志记录" Margin="5,5" Checked="OnConfigChanged" Unchecked="OnConfigChanged"/>
+                                    </StackPanel>
+
+                                    <!-- Right Column -->
+                                    <StackPanel Grid.Column="1" Margin="20,0,0,0">
+                                        <TextBlock Text="📊 服务状态监控" Style="{StaticResource SectionHeader}"/>
+                                        
+                                        <Border Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,5">
+                                            <StackPanel>
+                                                <Grid Margin="0,5">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse x:Name="WebRTCStatusIndicator" Style="{StaticResource StatusIndicator}"/>
+                                                    <TextBlock Grid.Column="1" Text="PeerStreamEnterprise" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="WebRTCPortLabel" Grid.Column="2" Text="端口: 11188" VerticalAlignment="Center" Foreground="#718096"/>
+                                                </Grid>
+                                                
+                                                <Grid Margin="0,5">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse x:Name="UEWebSocketStatusIndicator" Style="{StaticResource StatusIndicator}"/>
+                                                    <TextBlock Grid.Column="1" Text="UE WebSocket 服务" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="UEWebSocketPortLabel" Grid.Column="2" Text="端口: 8081" VerticalAlignment="Center" Foreground="#718096"/>
+                                                </Grid>
+                                                
+                                                <Grid Margin="0,5">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse x:Name="UEProcessStatusIndicator" Style="{StaticResource StatusIndicator}"/>
+                                                    <TextBlock Grid.Column="1" Text="UE 引擎进程" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="UEProcessLabel" Grid.Column="2" Text="未运行" VerticalAlignment="Center" Foreground="#718096"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                        
+                                        <TextBlock Text="🔧 快速操作" Style="{StaticResource SectionHeader}"/>
+                                        
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                            <Button x:Name="BtnSaveConfig" Content="💾 保存配置" Click="BtnSaveConfig_Click" Background="#38A169" Margin="0,0,10,0"/>
+                                            <Button x:Name="BtnReloadConfig" Content="🔄 重新加载" Click="BtnReloadConfig_Click" Background="#718096"/>
+                                        </StackPanel>
+                                        
+                                        <Button x:Name="BtnValidateConfig" Content="🔍 验证配置" Click="BtnValidateConfig_Click" Margin="0,5" Background="#3182CE"/>
+                                        <Button x:Name="BtnResetDefaults" Content="🔄 恢复默认值" Click="BtnResetDefaults_Click" Background="#E53E3E" Margin="0,5"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- PeerStreamEnterprise Configuration Sub-Tab -->
+                    <TabItem Header="服务器配置" FontSize="12">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <Grid Margin="20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Left Column -->
+                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                    <TextBlock Text="🔐 认证与安全" Style="{StaticResource SectionHeader}"/>
+                                    
+                                    <CheckBox x:Name="ChkAuth" Content="启用用户认证" Margin="5,10" Checked="OnConfigChanged" Unchecked="OnConfigChanged"/>
+                                    
+                                    <Label Content="用户认证密码 (格式: 用户名:hash):" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtUserPassword" ToolTip="格式: username:hash, 如 admin:hash值" TextChanged="OnConfigChanged"/>
+                                    
+                                    <CheckBox x:Name="ChkApiCors" Content="启用 API CORS" Margin="5,10" Checked="OnConfigChanged" Unchecked="OnConfigChanged"/>
+
+                                    <TextBlock Text="⏱️ 时间管理" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                    
+                                    <Label Content="UE 启动冷却时间 (秒):" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="TxtExeUeCoolTime" ToolTip="UE程序启动后的冷却时间，默认60秒" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="空闲释放时间 (秒):" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtIdleReleaseTime" ToolTip="用户断开连接后多久释放UE实例，默认120秒" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="预载释放时间 (毫秒):" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtPreloadReleaseTime" ToolTip="预载实例的释放时间，默认15000毫秒" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="鼠标释放时间 (秒):" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtMouseReleaseTime" ToolTip="鼠标无操作后的释放时间，0表示不启用" TextChanged="OnConfigChanged"/>
+
+                                    <TextBlock Text="🌐 网络配置" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                    
+                                    <Label Content="信令服务器 IP:" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="TxtSignalIp" ToolTip="信令服务器绑定的IP地址，默认127.0.0.1" TextChanged="OnConfigChanged"/>
+                                </StackPanel>
+
+                                <!-- Right Column -->
+                                <StackPanel Grid.Column="1" Margin="20,0,0,0">
+                                    <TextBlock Text="🖥️ 机器配置" Style="{StaticResource SectionHeader}"/>
+                                    
+                                    <Label Content="机器 IP:" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="TxtMachineIp" ToolTip="本机IP地址，用于多机部署" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="GPU 卡号:" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtGpuCard" ToolTip="使用的GPU卡号，默认0" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="GPU 显存 (GB):" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtGpuMemory" ToolTip="GPU显存大小，用于实例数量计算" TextChanged="OnConfigChanged"/>
+
+                                    <TextBlock Text="🧊 ICE 服务器" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                    
+                                    <Label Content="STUN 服务器:" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="TxtStunServer" ToolTip="STUN服务器地址，用于NAT穿透" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="ICE 用户名:" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtIceUsername" ToolTip="ICE服务器用户名" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="ICE 凭证:" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtIceCredential" ToolTip="ICE服务器凭证" TextChanged="OnConfigChanged"/>
+
+                                    <TextBlock Text="🔄 同步操作" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                    
+                                    <Border Background="#F0FFF4" BorderBrush="#38A169" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,5,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="💡 配置同步说明" FontWeight="Bold" Foreground="#2F855A" Margin="0,0,0,5"/>
+                                            <TextBlock TextWrapping="Wrap" Foreground="#2D3748" FontSize="12">
+                                                配置修改后会自动保存到signal.json文件，并重启PeerStreamEnterprise服务以应用新配置。
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                    
+                                    <Button x:Name="BtnSyncConfig" Content="🔄 立即同步配置" Click="BtnSyncConfig_Click" Background="#3182CE" Margin="0,5"/>
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Streaming Configuration Sub-Tab -->
+                    <TabItem Header="推流设置" FontSize="12">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <Grid Margin="20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Left Column -->
+                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                    <TextBlock Text="🎥 视频设置" Style="{StaticResource SectionHeader}"/>
+                                    
+                                    <Label Content="WebRTC 帧率 (FPS):" FontWeight="SemiBold"/>
+                                    <TextBox x:Name="TxtWebRTCFps" ToolTip="WebRTC推流帧率，默认30fps" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="分辨率宽度:" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtResolutionX" ToolTip="推流分辨率宽度，默认1920" TextChanged="OnConfigChanged"/>
+                                    
+                                    <Label Content="分辨率高度:" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                    <TextBox x:Name="TxtResolutionY" ToolTip="推流分辨率高度，默认1080" TextChanged="OnConfigChanged"/>
+
+                                    <TextBlock Text="🔧 引擎设置" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                    
+                                    <CheckBox x:Name="ChkUnattended" Content="无人值守模式" Margin="5,10" ToolTip="启用无人值守模式，减少用户交互" Checked="OnConfigChanged" Unchecked="OnConfigChanged"/>
+                                    
+                                    <CheckBox x:Name="ChkRenderOffScreen" Content="离屏渲染" Margin="5,5" ToolTip="启用离屏渲染，提高性能" Checked="OnConfigChanged" Unchecked="OnConfigChanged"/>
+                                    
+                                    <CheckBox x:Name="ChkAudioMixer" Content="启用音频混合器" Margin="5,5" ToolTip="启用音频混合器功能" Checked="OnConfigChanged" Unchecked="OnConfigChanged"/>
+                                </StackPanel>
+
+                                <!-- Right Column -->
+                                <StackPanel Grid.Column="1" Margin="20,0,0,0">
+                                    <TextBlock Text="⚡ 性能优化" Style="{StaticResource SectionHeader}"/>
+                                    
+                                    <Border Background="#EBF8FF" BorderBrush="#3182CE" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,5">
+                                        <StackPanel>
+                                            <TextBlock Text="📈 性能建议" FontWeight="Bold" Foreground="#2B6CB0" Margin="0,0,0,10"/>
+                                            <TextBlock TextWrapping="Wrap" Foreground="#2D3748" LineHeight="20" FontSize="12">
+                                                <Run Text="• 推荐分辨率：1920x1080或1280x720"/>
+                                                <LineBreak/>
+                                                <Run Text="• 推荐帧率：30fps（流畅）或60fps（高质量）"/>
+                                                <LineBreak/>
+                                                <Run Text="• 离屏渲染可提高服务器性能"/>
+                                                <LineBreak/>
+                                                <Run Text="• 无人值守模式适用于生产环境"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TextBlock Text="🎮 预设配置" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                    
+                                    <Button x:Name="BtnPresetHD" Content="高清预设 (1920x1080@30fps)" Click="BtnPresetHD_Click" Background="#38A169" Margin="0,5"/>
+                                    <Button x:Name="BtnPresetSD" Content="标清预设 (1280x720@30fps)" Click="BtnPresetSD_Click" Background="#3182CE" Margin="0,5"/>
+                                    <Button x:Name="BtnPresetPerformance" Content="性能优先预设" Click="BtnPresetPerformance_Click" Background="#F6AD55" Margin="0,5"/>
+                                    
+                                    <TextBlock Text="🔍 当前设置预览" Style="{StaticResource SectionHeader}" Margin="0,20,0,5"/>
+                                    
+                                    <Border Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,5">
+                                        <StackPanel>
+                                            <TextBlock x:Name="TxtStreamingPreview" TextWrapping="Wrap" Foreground="#2D3748" FontSize="12">
+                                                分辨率：1920x1080 | 帧率：30fps | 离屏渲染：开启
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </TabItem>
+
+            <!-- Services Control Tab -->
+            <TabItem Header="🚀 服务控制" FontSize="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="20">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Instructions -->
+                        <Border Grid.Row="0" Background="#FFF5F5" BorderBrush="#E53E3E" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,0,0,20">
+                            <StackPanel>
+                                <TextBlock Text="⚠️ 服务控制说明" FontSize="16" FontWeight="Bold" Foreground="#C53030" Margin="0,0,0,10"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#2D3748" LineHeight="22">
+                                    <Run Text="• "/>
+                                    <Run Text="启动服务前请确保配置正确：" FontWeight="Bold"/>
+                                    <Run Text="端口未被占用，UE 路径有效"/>
+                                    <LineBreak/>
+                                    <Run Text="• "/>
+                                    <Run Text="UE 进程管理：" FontWeight="Bold"/>
+                                    <Run Text="可以独立启动/停止 UE 引擎，支持强制终止"/>
+                                    <LineBreak/>
+                                    <Run Text="• "/>
+                                    <Run Text="服务依赖关系：" FontWeight="Bold"/>
+                                    <Run Text="某些功能需要多个服务同时运行才能正常工作"/>
+                                    <LineBreak/>
+                                    <Run Text="• "/>
+                                    <Run Text="故障排除：" FontWeight="Bold"/>
+                                    <Run Text="如果服务启动失败，请检查日志和端口占用情况"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Service Control Buttons -->
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,20">
+                            <Button x:Name="BtnStartAllServices" Content="🚀 启动所有服务" Click="BtnStartAllServices_Click" Background="#38A169" Margin="0,0,10,0" Padding="15,8"/>
+                            <Button x:Name="BtnStopAllServices" Content="🛑 停止所有服务" Click="BtnStopAllServices_Click" Background="#E53E3E" Margin="0,0,10,0" Padding="15,8"/>
+                            <Button x:Name="BtnRestartServices" Content="🔄 重启所有服务" Click="BtnRestartServices_Click" Background="#3182CE" Margin="0,0,10,0" Padding="15,8"/>
+                        </StackPanel>
+
+                        <!-- UE Control -->
+                        <Border Grid.Row="2" Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,0,0,20">
+                            <StackPanel>
+                                <TextBlock Text="🎮 UE 引擎控制" Style="{StaticResource SectionHeader}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Button x:Name="BtnStartUE" Content="▶️ 启动 UE" Click="BtnStartUE_Click" Background="#38A169" Margin="0,0,10,0"/>
+                                    <Button x:Name="BtnStopUE" Content="⏹️ 停止 UE" Click="BtnStopUE_Click" Background="#E53E3E" Margin="0,0,10,0"/>
+                                    <Button x:Name="BtnForceStopUE" Content="⚡ 强制终止" Click="BtnForceStopUE_Click" Background="#C53030" Margin="0,0,10,0"/>
+                                    <Button x:Name="BtnRestartUE" Content="🔄 重启 UE" Click="BtnRestartUE_Click" Background="#3182CE" Margin="0,0,10,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>                        <!-- Individual Service Controls -->
+                        <StackPanel Grid.Row="3">
+                            <TextBlock Text="🔧 独立服务控制" Style="{StaticResource SectionHeader}"/>
+                            
+                            <!-- WebRTC Service -->
+                            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="🌐 WebRTC 信令服务" FontWeight="Bold" FontSize="14"/>
+                                        <TextBlock Text="处理 WebRTC 连接的信令通道，负责建立点对点连接" Foreground="#718096" Margin="0,5,0,0"/>
+                                    </StackPanel>
+                                    
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button x:Name="BtnStartWebRTC" Content="启动" Click="BtnStartWebRTC_Click" Background="#38A169" Margin="0,0,5,0" Padding="10,5"/>
+                                        <Button x:Name="BtnStopWebRTC" Content="停止" Click="BtnStopWebRTC_Click" Background="#E53E3E" Margin="0,0,5,0" Padding="10,5"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            
+                            <!-- UE WebSocket Service -->
+                            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="🔌 UE WebSocket 服务" FontWeight="Bold" FontSize="14"/>
+                                        <TextBlock Text="与 UE 引擎进行实时通信，发送控制命令和接收状态信息" Foreground="#718096" Margin="0,5,0,0"/>
+                                    </StackPanel>
+                                    
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button x:Name="BtnStartUEWebSocket" Content="启动" Click="BtnStartUEWebSocket_Click" Background="#38A169" Margin="0,0,5,0" Padding="10,5"/>
+                                        <Button x:Name="BtnStopUEWebSocket" Content="停止" Click="BtnStopUEWebSocket_Click" Background="#E53E3E" Margin="0,0,5,0" Padding="10,5"/>
+                                        <Button x:Name="BtnSendCommand" Content="测试命令" Click="BtnSendCommand_Click" Background="#3182CE" Margin="0,0,5,0" Padding="10,5"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            
+                            <!-- Control API Service -->
+                            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="🎛️ 控制 API 服务" FontWeight="Bold" FontSize="14"/>
+                                        <TextBlock Text="提供 RESTful API 接口，支持外部系统的远程控制和监控" Foreground="#718096" Margin="0,5,0,0"/>
+                                    </StackPanel>
+                                    
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button x:Name="BtnStartControlAPI" Content="启动" Click="BtnStartControlAPI_Click" Background="#38A169" Margin="0,0,5,0" Padding="10,5"/>
+                                        <Button x:Name="BtnStopControlAPI" Content="停止" Click="BtnStopControlAPI_Click" Background="#E53E3E" Margin="0,0,5,0" Padding="10,5"/>
+                                        <Button x:Name="BtnTestAPI" Content="测试 API" Click="BtnTestAPI_Click" Background="#3182CE" Margin="0,0,5,0" Padding="10,5"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Logs Tab -->
+            <TabItem Header="📋 日志监控" FontSize="14">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Instructions -->
+                    <Border Grid.Row="0" Background="#F0FFF4" BorderBrush="#38A169" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,0,0,15">
+                        <StackPanel>
+                            <TextBlock Text="📊 日志监控说明" FontSize="16" FontWeight="Bold" Foreground="#2F855A" Margin="0,0,0,10"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="#2D3748" LineHeight="22">
+                                <Run Text="• "/>
+                                <Run Text="实时监控：" FontWeight="Bold"/>
+                                <Run Text="启用自动刷新可以实时查看最新日志"/>
+                                <LineBreak/>
+                                <Run Text="• "/>
+                                <Run Text="日志级别：" FontWeight="Bold"/>
+                                <Run Text="Debug(调试) > Info(信息) > Warning(警告) > Error(错误)"/>
+                                <LineBreak/>
+                                <Run Text="• "/>
+                                <Run Text="故障排除：" FontWeight="Bold"/>
+                                <Run Text="Error 级别日志通常包含问题的详细信息"/>
+                                <LineBreak/>
+                                <Run Text="• "/>
+                                <Run Text="日志导出：" FontWeight="Bold"/>
+                                <Run Text="可以生成日志包发送给技术支持"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Log Controls -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button x:Name="BtnRefreshLogs" Content="🔄 刷新" Click="BtnRefreshLogs_Click" Margin="0,0,10,0"/>
+                        <Button x:Name="BtnClearLogs" Content="🗑️ 清空" Click="BtnClearLogs_Click" Background="#E53E3E" Margin="0,0,10,0"/>
+                        <ComboBox x:Name="CmbLogLevel" Width="120" Margin="0,0,10,0" SelectionChanged="CmbLogLevel_SelectionChanged">
+                            <ComboBoxItem Content="🐛 Debug"/>
+                            <ComboBoxItem Content="ℹ️ Information" IsSelected="True"/>
+                            <ComboBoxItem Content="⚠️ Warning"/>
+                            <ComboBoxItem Content="❌ Error"/>
+                        </ComboBox>
+                        <CheckBox x:Name="ChkAutoRefresh" Content="🔄 自动刷新" IsChecked="True" Margin="10,0"/>
+                        <Separator Margin="15,0"/>
+                        <Button x:Name="BtnExportLogs" Content="📤 导出日志" Click="BtnExportLogs_Click" Background="#3182CE" Margin="10,0"/>
+                    </StackPanel>
+
+                    <!-- Log Display -->
+                    <Border Grid.Row="2" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="5">
+                        <TextBox x:Name="TxtLogs" 
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                 IsReadOnly="True" FontFamily="Consolas" FontSize="11"
+                                 Background="#F7FAFC" Foreground="#2D3748" BorderThickness="0"/>
+                    </Border>
+
+                    <!-- Log Statistics -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBlock x:Name="LogStatsLabel" Text="行数: 0 | 大小: 0 KB" Foreground="#718096"/>
+                        <TextBlock Text=" | " Foreground="#718096"/>
+                        <TextBlock x:Name="LastUpdateLabel" Text="最后更新: 从未" Foreground="#718096"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- About Tab -->
+            <TabItem Header="ℹ️ 关于" FontSize="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="30">
+                        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="10" Padding="30" Margin="0,0,0,20">                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="bestPixer2UE" FontSize="32" FontWeight="Bold" Foreground="#2D3748" Margin="0,0,0,10" TextAlignment="Center"/>
+                                <TextBlock Text="增强版像素流企业解决方案" FontSize="18" Foreground="#718096" Margin="0,0,0,20" TextAlignment="Center"/>
+                                <TextBlock Text="Version 2.0.0" FontSize="14" Foreground="#A0AEC0" Margin="0,0,0,5" TextAlignment="Center"/>
+                                <TextBlock Text="Build 20250619" FontSize="12" Foreground="#A0AEC0" TextAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        
+                        <TextBlock Text="🚀 核心功能" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#2D3748"/>
+                        <Border Background="#F7FAFC" CornerRadius="5" Padding="20" Margin="0,0,0,20">
+                            <TextBlock TextWrapping="Wrap" LineHeight="24" Foreground="#4A5568">
+                                <Run Text="✅ 多端口服务管理：" FontWeight="Bold"/>
+                                <Run Text="WebRTC 信令、UE WebSocket 通信、控制 API 独立运行"/>
+                                <LineBreak/>
+                                <Run Text="✅ 进程自动化管理：" FontWeight="Bold"/>
+                                <Run Text="UE 引擎启动、监控、优雅关闭和强制终止"/>
+                                <LineBreak/>
+                                <Run Text="✅ 企业级日志系统：" FontWeight="Bold"/>
+                                <Run Text="分级日志记录、自动轮转、故障诊断包生成"/>
+                                <LineBreak/>
+                                <Run Text="✅ 现代化用户界面：" FontWeight="Bold"/>
+                                <Run Text="直观的配置管理、实时状态监控、一键操作"/>
+                                <LineBreak/>
+                                <Run Text="✅ 开箱即用部署：" FontWeight="Bold"/>
+                                <Run Text="单文件发布、自包含运行时、无需额外依赖"/>
+                            </TextBlock>
+                        </Border>                        
+                        <TextBlock Text="🛠️ 技术规格" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#2D3748"/>
+                        <Border Background="#EBF8FF" CornerRadius="5" Padding="20" Margin="0,0,0,20">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                    <TextBlock Text="运行环境" FontWeight="Bold" Margin="0,0,0,5" Foreground="#2B6CB0"/>
+                                    <TextBlock Text="• .NET 8.0 Runtime" Margin="0,2"/>
+                                    <TextBlock Text="• Windows 10/11 x64" Margin="0,2"/>
+                                    <TextBlock Text="• WPF Framework" Margin="0,2"/>
+                                    <TextBlock Text="• ASP.NET Core 8.0" Margin="0,2"/>
+                                    
+                                    <TextBlock Text="网络要求" FontWeight="Bold" Margin="0,15,0,5" Foreground="#2B6CB0"/>
+                                    <TextBlock Text="• TCP 端口: 8080-8082" Margin="0,2"/>
+                                    <TextBlock Text="• WebSocket 支持" Margin="0,2"/>
+                                    <TextBlock Text="• HTTP/HTTPS 协议" Margin="0,2"/>
+                                </StackPanel>
+                                
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="支持的 UE 版本" FontWeight="Bold" Margin="0,0,0,5" Foreground="#2B6CB0"/>
+                                    <TextBlock Text="• Unreal Engine 4.26+" Margin="0,2"/>
+                                    <TextBlock Text="• Unreal Engine 5.x" Margin="0,2"/>
+                                    <TextBlock Text="• 像素流插件启用" Margin="0,2"/>
+                                    
+                                    <TextBlock Text="日志存储" FontWeight="Bold" Margin="0,15,0,5" Foreground="#2B6CB0"/>
+                                    <TextBlock Text="• 自动轮转机制" Margin="0,2"/>
+                                    <TextBlock Text="• 压缩存档支持" Margin="0,2"/>
+                                    <TextBlock Text="• 可配置保留策略" Margin="0,2"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        
+                        <TextBlock Text="📞 技术支持" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#2D3748"/>
+                        <Border Background="#FFF5F5" CornerRadius="5" Padding="20">
+                            <StackPanel>
+                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,10" Foreground="#4A5568">
+                                    如遇到问题，请生成日志包并提供以下信息：
+                                </TextBlock>
+                                <TextBlock Text="• 操作系统版本和架构" Margin="10,2" Foreground="#4A5568"/>
+                                <TextBlock Text="• UE 引擎版本和项目配置" Margin="10,2" Foreground="#4A5568"/>
+                                <TextBlock Text="• 网络环境和端口占用情况" Margin="10,2" Foreground="#4A5568"/>
+                                <TextBlock Text="• 完整的错误日志和操作步骤" Margin="10,2" Foreground="#4A5568"/>
+                                
+                                <StackPanel Orientation="Horizontal" Margin="0,15,0,0">
+                                    <Button x:Name="BtnSystemInfo" Content="📋 收集系统信息" Click="BtnSystemInfo_Click" Background="#3182CE" Margin="0,0,10,0"/>
+                                    <Button x:Name="BtnOpenGitHub" Content="🐱 GitHub 项目" Click="BtnOpenGitHub_Click" Background="#24292E" Foreground="White" Margin="0,0,10,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- Footer -->
+        <Border Grid.Row="2" Background="#F7FAFC" CornerRadius="5" Padding="10" Margin="0,10,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Grid.Column="0" x:Name="StatusLabel" Text="就绪 - 请配置 UE 路径并启动服务" VerticalAlignment="Center" Foreground="#718096"/>
+                
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="状态: " VerticalAlignment="Center" Foreground="#718096"/>
+                    <Ellipse x:Name="GlobalStatusIndicator" Width="10" Height="10" Fill="Red" Margin="5,0"/>
+                    <TextBlock x:Name="ConnectionCountLabel" Text="连接数: 0" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="#718096"/>
+                    <TextBlock x:Name="UptimeLabel" Text="运行时间: 00:00:00" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="#718096"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
