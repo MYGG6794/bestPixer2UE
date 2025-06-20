@@ -382,9 +382,7 @@
                             <Button x:Name="BtnStartAllServices" Content="🚀 启动所有服务" Click="BtnStartAllServices_Click" Background="#38A169" Margin="0,0,10,0" Padding="15,8"/>
                             <Button x:Name="BtnStopAllServices" Content="🛑 停止所有服务" Click="BtnStopAllServices_Click" Background="#E53E3E" Margin="0,0,10,0" Padding="15,8"/>
                             <Button x:Name="BtnRestartServices" Content="🔄 重启所有服务" Click="BtnRestartServices_Click" Background="#3182CE" Margin="0,0,10,0" Padding="15,8"/>
-                        </StackPanel>
-
-                        <!-- UE Control -->
+                        </StackPanel>                        <!-- UE Control -->
                         <Border Grid.Row="2" Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,0,0,20">
                             <StackPanel>
                                 <TextBlock Text="🎮 UE 引擎控制" Style="{StaticResource SectionHeader}"/>
@@ -394,8 +392,12 @@
                                     <Button x:Name="BtnForceStopUE" Content="⚡ 强制终止" Click="BtnForceStopUE_Click" Background="#C53030" Margin="0,0,10,0"/>
                                     <Button x:Name="BtnRestartUE" Content="🔄 重启 UE" Click="BtnRestartUE_Click" Background="#3182CE" Margin="0,0,10,0"/>
                                 </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                    <Button x:Name="BtnTestUnrealGameCleanup" Content="🧪 UnrealGame专项清理测试" Click="BtnTestUnrealGameCleanup_Click" Background="#8B5CF6" Foreground="White" Margin="0,0,10,0" Padding="10,4"/>
+                                    <TextBlock Text="(调试工具：专门清理UnrealGame残留进程)" VerticalAlignment="Center" Foreground="#718096" FontSize="12"/>
+                                </StackPanel>
                             </StackPanel>
-                        </Border>                        <!-- Individual Service Controls -->
+                        </Border><!-- Individual Service Controls -->
                         <StackPanel Grid.Row="3">
                             <TextBlock Text="🔧 独立服务控制" Style="{StaticResource SectionHeader}"/>
                             

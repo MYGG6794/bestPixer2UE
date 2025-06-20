@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -539,31 +540,54 @@ namespace bestPixer2UE
                 Log.Error(ex, "Failed to start fallback services");
                 throw;
             }
-        }
-
-        private async void BtnStopAllServices_Click(object sender, RoutedEventArgs e)
+        }        private async void BtnStopAllServices_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // 停止PeerStreamEnterprise服务                await _peerStreamService.StopAsync();
+                // 停止PeerStreamEnterprise服务
+                await _peerStreamService.StopAsync();
                 
                 // 停止内置服务
                 await _multiPortService.StopAsync();
                 await _streamingService.StopAsync();
                 await _ueControlService.StopAsync();
                 
-                // 停止所有UE进程
-                _processManager.StopAllUEProcesses();
+                // 完全清理所有UE进程
+                var cleanedCount = _processManager.CompleteUEProcessCleanup();
                 
-                Log.Information("All services stopped successfully");
-                MessageBox.Show("所有服务已停止！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                // 额外检查：如果还有UnrealGame进程残留，执行专项清理
+                Thread.Sleep(1000);
+                var remainingUnrealGame = _processManager.GetRemainingUnrealGameProcesses();
+                if (remainingUnrealGame.Count > 0)
+                {
+                    Log.Warning("Detected {Count} remaining UnrealGame processes, initiating specialized cleanup...", 
+                        remainingUnrealGame.Count);
+                    var additionalKilled = _processManager.RepeatedUnrealGameCleanup(3);
+                    cleanedCount += additionalKilled;
+                    Log.Warning("Specialized UnrealGame cleanup killed additional {Count} processes", additionalKilled);
+                }
+                
+                Log.Information("All services stopped successfully. Cleaned {CleanedCount} processes", cleanedCount);
+                
+                // 最终验证
+                var finalCheck = _processManager.GetRemainingUnrealGameProcesses();
+                if (finalCheck.Count > 0)
+                {
+                    MessageBox.Show($"所有服务已停止！\n清理了 {cleanedCount} 个进程\n\n⚠️ 警告：仍有 {finalCheck.Count} 个UnrealGame进程残留", 
+                        "服务停止完成", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+                else
+                {
+                    MessageBox.Show($"所有服务已停止！\n清理了 {cleanedCount} 个进程\n\n✅ 所有UE进程已完全清理", 
+                        "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Failed to stop all services");
                 MessageBox.Show($"停止服务失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        }        private async void BtnRestartServices_Click(object sender, RoutedEventArgs e)
+        }private async void BtnRestartServices_Click(object sender, RoutedEventArgs e)
         {
             try            {
                 // Stop all services first
@@ -1219,6 +1243,104 @@ namespace bestPixer2UE
         }
 
         #endregion
+
+        /// <summary>
+        /// 调试：检查当前运行的UE相关进程
+        /// </summary>
+        private void DebugCheckUEProcesses()
+        {
+            try
+            {
+                var allProcesses = Process.GetProcesses();
+                var ueRelatedProcesses = allProcesses
+                    .Where(p => p.ProcessName.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                p.ProcessName.IndexOf("UE", StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToArray();
+
+                Log.Information("Found {Count} UE-related processes:", ueRelatedProcesses.Length);
+                foreach (var proc in ueRelatedProcesses)
+                {
+                    try
+                    {
+                        Log.Information("  - {ProcessName} (PID: {ProcessId})", proc.ProcessName, proc.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Error reading process info");
+                    }
+                    finally
+                    {
+                        proc.Dispose();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error checking UE processes");
+            }
+        }
+
+        /// <summary>
+        /// 测试UnrealGame进程清理 - 调试按钮
+        /// </summary>
+        private void BtnTestUnrealGameCleanup_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var result = MessageBox.Show("这将执行UnrealGame专项重复清理测试。\n\n此操作会强制终止所有UnrealGame相关进程，确定继续吗？", 
+                    "UnrealGame专项清理", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                
+                if (result == MessageBoxResult.Yes)
+                {
+                    Log.Warning("Starting UnrealGame-specific repeated cleanup test...");
+                    
+                    // 先显示当前的UnrealGame进程
+                    var beforeCleanup = _processManager.GetRemainingUnrealGameProcesses();
+                    Log.Information("Before cleanup: Found {Count} UnrealGame processes", beforeCleanup.Count);
+                    
+                    if (beforeCleanup.Count == 0)
+                    {
+                        MessageBox.Show("当前没有发现UnrealGame进程", "清理测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    
+                    // 执行重复清理
+                    var killedCount = _processManager.RepeatedUnrealGameCleanup(maxAttempts: 5);
+                    
+                    // 检查清理后的状态
+                    var afterCleanup = _processManager.GetRemainingUnrealGameProcesses();
+                    
+                    string message = $"UnrealGame专项清理完成：\n\n" +
+                                   $"清理前进程数：{beforeCleanup.Count}\n" +
+                                   $"清理后进程数：{afterCleanup.Count}\n" +
+                                   $"总计清理数：{killedCount}\n\n";
+                    
+                    if (afterCleanup.Count == 0)
+                    {
+                        message += "✅ 所有UnrealGame进程已成功清理！";
+                        MessageBox.Show(message, "清理成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        message += $"⚠️ 仍有 {afterCleanup.Count} 个进程残留：\n";
+                        message += string.Join("\n", afterCleanup.Take(5).Select(p => $"- {p.ProcessName} (PID: {p.Id})"));
+                        if (afterCleanup.Count > 5)
+                        {
+                            message += $"\n... 还有 {afterCleanup.Count - 5} 个进程";
+                        }
+                        MessageBox.Show(message, "清理完成但有残留", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    
+                    Log.Warning("UnrealGame cleanup test completed. Before: {Before}, After: {After}, Killed: {Killed}", 
+                        beforeCleanup.Count, afterCleanup.Count, killedCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during UnrealGame cleanup test");
+                MessageBox.Show($"UnrealGame清理测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
 
         protected override void OnClosed(EventArgs e)
         {

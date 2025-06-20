@@ -351,9 +351,7 @@ namespace bestPixer2UE.Services
                 Log.Error(ex, "Failed to start UE control service");
                 throw;
             }
-        }
-
-        /// <summary>
+        }        /// <summary>
         /// Stop UE control service
         /// </summary>
         public async Task StopAsync()
@@ -361,6 +359,13 @@ namespace bestPixer2UE.Services
             try
             {
                 Log.Information("Stopping UE control service...");
+                
+                // First stop the UE process if it's running
+                if (_currentUEProcess != null)
+                {
+                    Log.Information("Stopping UE process as part of service shutdown...");
+                    await StopUEAsync();
+                }
                 
                 // Stop WebSocket service
                 await Task.Delay(100); // Simulate async operation

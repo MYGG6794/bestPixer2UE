@@ -483,6 +483,724 @@ namespace bestPixer2UE.Core
             return stoppedCount;
         }
 
+        /// <summary>
+        /// Kill all UE-related processes by name pattern (nuclear option)
+        /// This will kill ALL UE processes, not just the ones we started
+        /// </summary>
+        public int KillAllUEProcessesByName()
+        {
+            Log.Warning("Scanning system for all UE-related processes to kill...");
+              string[] ueProcessPatterns = {
+                "*UnrealEngine*",
+                "*UnrealGame*",     // 添加UnrealGame进程模式
+                "*UE4*", 
+                "*UE5*",
+                "*UE_*",
+                "*Unreal*",
+                "*UELaunch*",
+                "*crashreportclient*"
+            };
+
+            int killedCount = 0;
+            
+            foreach (var pattern in ueProcessPatterns)
+            {
+                try
+                {
+                    var processes = Process.GetProcesses()
+                        .Where(p => IsPatternMatch(p.ProcessName, pattern.Replace("*", "")))
+                        .ToArray();
+
+                    foreach (var process in processes)
+                    {
+                        try
+                        {
+                            if (!process.HasExited)
+                            {
+                                Log.Warning("Force killing UE process: {ProcessName} (PID: {ProcessId})", 
+                                    process.ProcessName, process.Id);
+                                process.Kill(true); // Kill entire process tree
+                                process.WaitForExit(3000);
+                                killedCount++;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Debug(ex, "Failed to kill process {ProcessName} (PID: {ProcessId})", 
+                                process.ProcessName, process.Id);
+                        }
+                        finally
+                        {
+                            process.Dispose();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error scanning for processes matching pattern {Pattern}", pattern);
+                }
+            }
+
+            Log.Warning("Force killed {Count} UE-related processes", killedCount);
+            return killedCount;
+        }
+
+        /// <summary>
+        /// Check if process name matches pattern (simple contains check)
+        /// </summary>
+        private bool IsPatternMatch(string processName, string pattern)
+        {
+            return processName.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0;
+        }        /// <summary>
+        /// Complete UE process cleanup - tries everything with multiple passes
+        /// </summary>
+        public int CompleteUEProcessCleanup()
+        {
+            Log.Warning("Starting complete UE process cleanup with enhanced strategy...");
+            
+            int totalKilled = 0;
+            
+            // Step 1: Try to stop our managed processes gracefully
+            try
+            {
+                totalKilled += StopAllUEProcesses();
+                Thread.Sleep(2000); // Wait a bit
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in graceful UE process stop");
+            }
+
+            // Step 2: Force stop our managed processes
+            try
+            {
+                totalKilled += ForceStopAllUEProcesses();
+                Thread.Sleep(1000); // Wait a bit
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in force UE process stop");
+            }
+
+            // Step 3: Multiple passes of aggressive cleanup
+            for (int pass = 1; pass <= 3; pass++)
+            {
+                Log.Warning("Starting cleanup pass {Pass}/3", pass);
+                
+                // Step 3a: Nuclear option - kill all UE processes by name
+                try
+                {
+                    var killed = KillAllUEProcessesByName();
+                    totalKilled += killed;
+                    if (killed > 0)
+                    {
+                        Log.Warning("Pass {Pass}: Killed {Count} UE processes by name", pass, killed);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error in nuclear UE process cleanup on pass {Pass}", pass);
+                }
+
+                // Step 3b: Specific UnrealGame cleanup
+                try
+                {
+                    var unrealGameKilled = KillUnrealGameProcesses();
+                    totalKilled += unrealGameKilled;
+                    if (unrealGameKilled > 0)
+                    {
+                        Log.Warning("Pass {Pass}: Additional UnrealGame cleanup killed {Count} processes", pass, unrealGameKilled);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error in UnrealGame specific cleanup on pass {Pass}", pass);
+                }
+
+                // Step 3c: WMI-based cleanup for stubborn processes
+                try
+                {
+                    var wmiKilled = KillUEProcessesViaWMI();
+                    totalKilled += wmiKilled;
+                    if (wmiKilled > 0)
+                    {
+                        Log.Warning("Pass {Pass}: WMI cleanup killed {Count} processes", pass, wmiKilled);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Error in WMI cleanup on pass {Pass}", pass);
+                }
+
+                // Check if any UE processes remain
+                var remainingProcesses = GetRemainingUEProcesses();
+                if (remainingProcesses.Count == 0)
+                {
+                    Log.Information("All UE processes cleared after pass {Pass}", pass);
+                    break;
+                }
+                else
+                {
+                    Log.Warning("Pass {Pass}: {Count} UE processes still running: {Processes}", 
+                        pass, remainingProcesses.Count, string.Join(", ", remainingProcesses.Select(p => $"{p.ProcessName}({p.Id})")));
+                    
+                    if (pass < 3)
+                    {
+                        Thread.Sleep(1500); // Wait before next pass
+                    }
+                }
+            }
+
+            // Final verification
+            var finalCheck = GetRemainingUEProcesses();
+            if (finalCheck.Count > 0)
+            {
+                Log.Warning("WARNING: {Count} UE processes still remain after complete cleanup: {Processes}",
+                    finalCheck.Count, string.Join(", ", finalCheck.Select(p => $"{p.ProcessName}({p.Id})")));
+            }
+            else
+            {
+                Log.Information("SUCCESS: All UE processes have been eliminated");
+            }
+
+            Log.Warning("Complete UE cleanup finished. Total processes affected: {TotalKilled}", totalKilled);
+            return totalKilled;
+        }
+
+        /// <summary>
+        /// 获取系统中剩余的UE相关进程
+        /// </summary>
+        public List<Process> GetRemainingUEProcesses()
+        {
+            List<Process> ueProcesses = new();
+            
+            try
+            {
+                string[] ueProcessPatterns = {
+                    "UnrealEngine",
+                    "UnrealGame",
+                    "UE4",
+                    "UE5", 
+                    "UE_",
+                    "Unreal",
+                    "UELaunch",
+                    "crashreportclient"
+                };
+
+                var allProcesses = Process.GetProcesses();
+                
+                foreach (var process in allProcesses)
+                {
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            foreach (var pattern in ueProcessPatterns)
+                            {
+                                if (process.ProcessName.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    ueProcesses.Add(process);
+                                    break; // 避免重复添加同一个进程
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Error checking process {ProcessName}", process.ProcessName);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error getting remaining UE processes");
+            }
+
+            return ueProcesses;
+        }
+
+        /// <summary>
+        /// 使用WMI强制终止UE进程 - 更强力的清理方法
+        /// </summary>
+        public int KillUEProcessesViaWMI()
+        {
+            Log.Warning("Using WMI to kill stubborn UE processes...");
+            
+            int killedCount = 0;
+            
+            try
+            {
+                string[] ueProcessPatterns = {
+                    "UnrealEngine",
+                    "UnrealGame", 
+                    "UE4",
+                    "UE5",
+                    "UE_",
+                    "Unreal",
+                    "UELaunch",
+                    "crashreportclient"
+                };
+
+                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Process"))
+                {
+                    using (var results = searcher.Get())
+                    {
+                        foreach (ManagementObject process in results)
+                        {
+                            try
+                            {
+                                var processName = process["Name"]?.ToString() ?? "";
+                                var processId = process["ProcessId"]?.ToString() ?? "";
+                                
+                                // 检查是否匹配UE进程模式
+                                bool isUEProcess = ueProcessPatterns.Any(pattern => 
+                                    processName.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0);
+                                
+                                if (isUEProcess)
+                                {
+                                    Log.Warning("WMI terminating process: {ProcessName} (PID: {ProcessId})", 
+                                        processName, processId);
+                                    
+                                    // 使用WMI终止进程
+                                    var terminateResult = process.InvokeMethod("Terminate", null);
+                                    if (terminateResult != null && terminateResult.ToString() == "0")
+                                    {
+                                        killedCount++;
+                                        Log.Warning("WMI successfully terminated {ProcessName} (PID: {ProcessId})", 
+                                            processName, processId);
+                                    }
+                                    else
+                                    {
+                                        Log.Warning("WMI termination failed for {ProcessName} (PID: {ProcessId}), result: {Result}", 
+                                            processName, processId, terminateResult);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Debug(ex, "Error processing WMI object");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in WMI-based process cleanup");
+            }
+
+            Log.Warning("WMI cleanup completed. Killed {Count} processes", killedCount);
+            return killedCount;
+        }
+
+        /// <summary>
+        /// 专门检查和清理UnrealGame进程 - 增强版本
+        /// </summary>
+        public int KillUnrealGameProcesses()
+        {
+            Log.Warning("Scanning for UnrealGame processes with enhanced detection...");
+            
+            int killedCount = 0;
+            
+            try
+            {
+                // 使用多种方式查找UnrealGame进程
+                var processes = Process.GetProcesses();
+                var unrealGameProcesses = new List<Process>();
+                
+                foreach (var process in processes)
+                {
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            // 检查进程名称
+                            if (process.ProcessName.IndexOf("UnrealGame", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                unrealGameProcesses.Add(process);
+                                continue;
+                            }
+                            
+                            // 检查可执行文件路径（如果可访问）
+                            try
+                            {
+                                var mainModule = process.MainModule;
+                                if (mainModule?.FileName?.IndexOf("UnrealGame", StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    unrealGameProcesses.Add(process);
+                                }
+                            }
+                            catch (Exception)
+                            {
+                                // 某些进程可能无法访问MainModule，跳过
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Error checking process {ProcessId} for UnrealGame", process.Id);
+                    }
+                }
+
+                // 去重
+                var uniqueProcesses = unrealGameProcesses.GroupBy(p => p.Id).Select(g => g.First()).ToList();
+                
+                foreach (var process in uniqueProcesses)
+                {
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            Log.Warning("Force killing UnrealGame process: {ProcessName} (PID: {ProcessId})", 
+                                process.ProcessName, process.Id);
+                            
+                            // 尝试多种终止方法
+                            bool killed = false;
+                            
+                            // 方法1: Kill with process tree
+                            try
+                            {
+                                process.Kill(true);
+                                process.WaitForExit(2000);
+                                if (process.HasExited)
+                                {
+                                    killed = true;
+                                    killedCount++;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Debug(ex, "Kill method 1 failed for process {ProcessId}", process.Id);
+                            }
+                            
+                            // 方法2: 如果还没终止，尝试WMI方式
+                            if (!killed && !process.HasExited)
+                            {
+                                try
+                                {
+                                    using (var searcher = new ManagementObjectSearcher($"SELECT * FROM Win32_Process WHERE ProcessId = {process.Id}"))
+                                    {
+                                        using (var results = searcher.Get())
+                                        {
+                                            foreach (ManagementObject wmiProcess in results)
+                                            {
+                                                var result = wmiProcess.InvokeMethod("Terminate", null);
+                                                if (result?.ToString() == "0")
+                                                {
+                                                    killed = true;
+                                                    killedCount++;
+                                                    Log.Warning("WMI terminated UnrealGame process {ProcessId}", process.Id);
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Debug(ex, "WMI kill method failed for process {ProcessId}", process.Id);
+                                }
+                            }
+                            
+                            if (!killed)
+                            {
+                                Log.Error("Failed to terminate UnrealGame process {ProcessId} with all methods", process.Id);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Failed to kill UnrealGame process {ProcessName} (PID: {ProcessId})", 
+                            process.ProcessName, process.Id);
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            process.Dispose();
+                        }
+                        catch { }
+                    }
+                }
+
+                Log.Warning("Enhanced UnrealGame cleanup killed {Count} processes", killedCount);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in enhanced UnrealGame process scanning");
+            }
+            
+            return killedCount;
+        }
+
+        /// <summary>
+        /// 专门针对UnrealGame进程的重复强力清理
+        /// 用于调试和确保UnrealGame彻底清理
+        /// </summary>
+        public int RepeatedUnrealGameCleanup(int maxAttempts = 5)
+        {
+            Log.Warning("Starting repeated UnrealGame cleanup with {MaxAttempts} attempts...", maxAttempts);
+            
+            int totalKilled = 0;
+            
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                Log.Warning("UnrealGame cleanup attempt {Attempt}/{MaxAttempts}", attempt, maxAttempts);
+                
+                // 先检查是否还有UnrealGame进程
+                var remainingProcesses = GetRemainingUnrealGameProcesses();
+                if (remainingProcesses.Count == 0)
+                {
+                    Log.Information("No UnrealGame processes found on attempt {Attempt}", attempt);
+                    break;
+                }
+                
+                Log.Warning("Found {Count} UnrealGame processes on attempt {Attempt}: {Processes}", 
+                    remainingProcesses.Count, attempt, 
+                    string.Join(", ", remainingProcesses.Select(p => $"{p.ProcessName}({p.Id})")));
+                
+                // 方法1: 标准清理
+                try
+                {
+                    var killed1 = KillUnrealGameProcesses();
+                    totalKilled += killed1;
+                    if (killed1 > 0)
+                    {
+                        Log.Warning("Attempt {Attempt}: Standard cleanup killed {Count}", attempt, killed1);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Standard cleanup failed on attempt {Attempt}", attempt);
+                }
+                
+                Thread.Sleep(500); // 等待进程退出
+                
+                // 方法2: WMI清理
+                try
+                {
+                    var killed2 = KillUnrealGameViaWMI();
+                    totalKilled += killed2;
+                    if (killed2 > 0)
+                    {
+                        Log.Warning("Attempt {Attempt}: WMI cleanup killed {Count}", attempt, killed2);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "WMI cleanup failed on attempt {Attempt}", attempt);
+                }
+                
+                Thread.Sleep(500); // 等待进程退出
+                
+                // 方法3: CMD强杀
+                try
+                {
+                    var killed3 = KillUnrealGameViaCmd();
+                    totalKilled += killed3;
+                    if (killed3 > 0)
+                    {
+                        Log.Warning("Attempt {Attempt}: CMD cleanup killed {Count}", attempt, killed3);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "CMD cleanup failed on attempt {Attempt}", attempt);
+                }
+                
+                // 检查结果
+                Thread.Sleep(1000);
+                var afterCleanup = GetRemainingUnrealGameProcesses();
+                if (afterCleanup.Count == 0)
+                {
+                    Log.Information("All UnrealGame processes eliminated after attempt {Attempt}", attempt);
+                    break;
+                }
+                else if (attempt < maxAttempts)
+                {
+                    Log.Warning("Still {Count} UnrealGame processes remaining after attempt {Attempt}, trying again...", 
+                        afterCleanup.Count, attempt);
+                    Thread.Sleep(1000);
+                }
+            }
+            
+            // 最终检查
+            var finalRemaining = GetRemainingUnrealGameProcesses();
+            if (finalRemaining.Count > 0)
+            {
+                Log.Error("FAILED: {Count} UnrealGame processes still remain after {MaxAttempts} attempts: {Processes}",
+                    finalRemaining.Count, maxAttempts, 
+                    string.Join(", ", finalRemaining.Select(p => $"{p.ProcessName}({p.Id})")));
+            }
+            else
+            {
+                Log.Information("SUCCESS: All UnrealGame processes eliminated after repeated cleanup");
+            }
+            
+            Log.Warning("Repeated UnrealGame cleanup completed. Total killed: {TotalKilled}", totalKilled);
+            return totalKilled;
+        }
+
+        /// <summary>
+        /// 获取系统中剩余的UnrealGame进程
+        /// </summary>
+        public List<Process> GetRemainingUnrealGameProcesses()
+        {
+            List<Process> unrealGameProcesses = new();
+            
+            try
+            {
+                var allProcesses = Process.GetProcesses();
+                
+                foreach (var process in allProcesses)
+                {
+                    try
+                    {
+                        if (!process.HasExited)
+                        {
+                            // 检查进程名称
+                            if (process.ProcessName.IndexOf("UnrealGame", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                unrealGameProcesses.Add(process);
+                                continue;
+                            }
+                            
+                            // 检查可执行文件路径（如果可访问）
+                            try
+                            {
+                                var mainModule = process.MainModule;
+                                if (mainModule?.FileName?.IndexOf("UnrealGame", StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    unrealGameProcesses.Add(process);
+                                }
+                            }
+                            catch (Exception)
+                            {
+                                // 某些进程可能无法访问MainModule，跳过
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Error checking process {ProcessId} for UnrealGame", process.Id);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error getting remaining UnrealGame processes");
+            }
+
+            return unrealGameProcesses;
+        }
+
+        /// <summary>
+        /// 使用WMI专门清理UnrealGame进程
+        /// </summary>
+        public int KillUnrealGameViaWMI()
+        {
+            Log.Warning("Using WMI to kill UnrealGame processes...");
+            
+            int killedCount = 0;
+            
+            try
+            {
+                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_Process WHERE Name LIKE '%UnrealGame%'"))
+                {
+                    using (var results = searcher.Get())
+                    {
+                        foreach (ManagementObject process in results)
+                        {
+                            try
+                            {
+                                var processName = process["Name"]?.ToString() ?? "";
+                                var processId = process["ProcessId"]?.ToString() ?? "";
+                                
+                                Log.Warning("WMI terminating UnrealGame process: {ProcessName} (PID: {ProcessId})", 
+                                    processName, processId);
+                                
+                                var terminateResult = process.InvokeMethod("Terminate", null);
+                                if (terminateResult != null && terminateResult.ToString() == "0")
+                                {
+                                    killedCount++;
+                                    Log.Warning("WMI successfully terminated {ProcessName} (PID: {ProcessId})", 
+                                        processName, processId);
+                                }
+                                else
+                                {
+                                    Log.Warning("WMI termination failed for {ProcessName} (PID: {ProcessId}), result: {Result}", 
+                                        processName, processId, terminateResult);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Error(ex, "Error processing WMI UnrealGame object");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in WMI-based UnrealGame cleanup");
+            }
+
+            Log.Warning("WMI UnrealGame cleanup completed. Killed {Count} processes", killedCount);
+            return killedCount;
+        }
+
+        /// <summary>
+        /// 使用CMD命令强杀UnrealGame进程
+        /// </summary>
+        public int KillUnrealGameViaCmd()
+        {
+            Log.Warning("Using CMD taskkill to kill UnrealGame processes...");
+            
+            int killedCount = 0;
+            
+            try
+            {
+                // 使用taskkill命令强制终止UnrealGame进程
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "taskkill",
+                    Arguments = "/f /im UnrealGame* /t",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    if (process != null)
+                    {
+                        process.WaitForExit(5000); // 等待最多5秒
+                        
+                        var output = process.StandardOutput.ReadToEnd();
+                        var error = process.StandardError.ReadToEnd();
+                        
+                        Log.Warning("CMD taskkill output: {Output}", output);
+                        if (!string.IsNullOrEmpty(error))
+                        {
+                            Log.Warning("CMD taskkill error: {Error}", error);
+                        }
+                        
+                        // 简单计数（如果输出包含"SUCCESS"字样）
+                        var successCount = output.Split(new[] { "SUCCESS" }, StringSplitOptions.None).Length - 1;
+                        killedCount = Math.Max(0, successCount);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error using CMD to kill UnrealGame processes");
+            }
+
+            Log.Warning("CMD UnrealGame cleanup completed. Killed approximately {Count} processes", killedCount);
+            return killedCount;
+        }
+
         public void Dispose()
         {
             if (!_disposed)

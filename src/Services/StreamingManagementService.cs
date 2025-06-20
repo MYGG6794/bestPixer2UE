@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Serilog;
 using bestPixer2UE.Core;
 using Newtonsoft.Json;
 
 namespace bestPixer2UE.Services
-{
-    /// <summary>
+{    /// <summary>
     /// 统一的流媒体管理服务
     /// 整合PeerStreamEnterprise和配置管理
     /// </summary>
@@ -18,17 +18,20 @@ namespace bestPixer2UE.Services
         private readonly ConfigurationManager _configManager;
         private readonly ProcessManager _processManager;
         private readonly PeerStreamEnterpriseService _peerStreamService;
+        private readonly UEControlService _ueControlService;
         
         private bool _isInitialized = false;
 
         public StreamingManagementService(
             ConfigurationManager configManager, 
             ProcessManager processManager,
-            PeerStreamEnterpriseService peerStreamService)
+            PeerStreamEnterpriseService peerStreamService,
+            UEControlService ueControlService)
         {
             _configManager = configManager;
             _processManager = processManager;
             _peerStreamService = peerStreamService;
+            _ueControlService = ueControlService;
 
             // 订阅PeerStreamEnterprise事件
             _peerStreamService.ServiceStarted += OnPeerStreamStarted;
@@ -102,9 +105,7 @@ namespace bestPixer2UE.Services
                 ServiceError?.Invoke(this, ex.Message);
                 return false;
             }
-        }
-
-        /// <summary>
+        }        /// <summary>
         /// 停止流媒体服务
         /// </summary>
         public async Task StopAsync()
@@ -113,6 +114,22 @@ namespace bestPixer2UE.Services
             {
                 Log.Information("Stopping streaming management service...");
                 
+                // Stop UE process first if it's running
+                if (_ueControlService != null)
+                {
+                    Log.Information("Stopping UE control service...");
+                    await _ueControlService.StopAsync();
+                    
+                    // Additional safety: Complete UE process cleanup
+                    Log.Information("Performing complete UE process cleanup...");
+                    var cleanedCount = _processManager.CompleteUEProcessCleanup();
+                    if (cleanedCount > 0)
+                    {
+                        Log.Information("Cleaned up {CleanedCount} UE processes", cleanedCount);
+                    }
+                }
+                
+                // Then stop PeerStreamEnterprise
                 await _peerStreamService.StopAsync();
                 
                 _isInitialized = false;
@@ -123,8 +140,20 @@ namespace bestPixer2UE.Services
             {
                 Log.Error(ex, "Error stopping streaming management service");
                 ServiceError?.Invoke(this, ex.Message);
+                
+                // Final nuclear option: Kill all UE processes even if there was an error
+                try
+                {
+                    Log.Warning("Attempting nuclear UE cleanup due to error...");
+                    var killedCount = _processManager.KillAllUEProcessesByName();
+                    Log.Warning("Nuclear cleanup killed {KilledCount} processes", killedCount);
+                }
+                catch (Exception nuclearEx)
+                {
+                    Log.Error(nuclearEx, "Failed to perform nuclear UE cleanup");
+                }
             }
-        }        /// <summary>
+        }/// <summary>
         /// 检查环境依赖
         /// </summary>
         private Task<bool> CheckEnvironmentAsync()
@@ -299,6 +328,20 @@ namespace bestPixer2UE.Services
         private string GetPeerStreamPath()
         {
             return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PeerStreamEnterprise-main");
+        }        /// <summary>
+        /// 检查是否有UE进程在运行
+        /// </summary>
+        public bool HasRunningUEProcesses()
+        {
+            return _processManager.GetRunningUEProcesses().Any();
+        }
+
+        /// <summary>
+        /// 获取运行中的UE进程数量
+        /// </summary>
+        public int GetRunningUEProcessCount()
+        {
+            return _processManager.GetRunningUEProcesses().Count;
         }
 
         private void OnPeerStreamStarted(object? sender, string message)
