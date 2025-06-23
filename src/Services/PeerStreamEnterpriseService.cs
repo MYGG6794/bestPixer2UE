@@ -46,7 +46,7 @@ namespace bestPixer2UE.Services
         public string GetSignalingServerUrl()
         {
             var config = _configManager.Configuration;
-            return $"http://127.0.0.1:{config.WebRTCPort}";
+            return $"http://127.0.0.1:{config.PORT}";
         }
 
         /// <summary>
@@ -314,9 +314,7 @@ namespace bestPixer2UE.Services
             
             // 配置execue.json
             await ConfigureExecueJson(peerStreamPath, config);
-        }
-
-        /// <summary>
+        }        /// <summary>
         /// 配置signal.json文件
         /// </summary>
         private async Task ConfigureSignalJson(string peerStreamPath, AppConfiguration config)
@@ -326,7 +324,7 @@ namespace bestPixer2UE.Services
             // 读取现有配置或创建默认配置
             var signalConfig = new
             {
-                PORT = config.WebRTCPort,
+                PORT = config.PORT,
                 auth = false,
                 userpwd = "admin:dd2f757773f1fb6c690f3c1305c739bc4e8f35fd3e9eb69c4cdeb98d716f7eec",
                 apiCors = false,
@@ -381,9 +379,7 @@ namespace bestPixer2UE.Services
             var json = System.Text.Json.JsonSerializer.Serialize(signalConfig, new System.Text.Json.JsonSerializerOptions
             {
                 WriteIndented = true
-            });
-
-            await File.WriteAllTextAsync(signalJsonPath, json);
+            });            await File.WriteAllTextAsync(signalJsonPath, json);
             Log.Information("Updated signal.json configuration");
         }
 
@@ -396,7 +392,7 @@ namespace bestPixer2UE.Services
             
             var execueConfig = new
             {
-                signalPort = config.WebRTCPort,
+                signalPort = config.PORT,
                 signalIp = "127.0.0.1",
                 execueIp = "127.0.0.1"
             };

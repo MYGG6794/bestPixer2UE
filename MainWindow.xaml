@@ -147,7 +147,7 @@
                                                     </Grid.ColumnDefinitions>
                                                     <Ellipse x:Name="WebRTCStatusIndicator" Style="{StaticResource StatusIndicator}"/>
                                                     <TextBlock Grid.Column="1" Text="PeerStreamEnterprise" VerticalAlignment="Center"/>
-                                                    <TextBlock x:Name="WebRTCPortLabel" Grid.Column="2" Text="端口: 11188" VerticalAlignment="Center" Foreground="#718096"/>
+                                                    <TextBlock x:Name="WebRTCPortLabel" Grid.Column="2" Text="端口: 未配置" VerticalAlignment="Center" Foreground="#718096"/>
                                                 </Grid>
                                                 
                                                 <Grid Margin="0,5">
@@ -462,6 +462,192 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Real-time Monitoring Tab -->
+            <TabItem Header="📊 实时监控" FontSize="14">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="20">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        
+                        <!-- Header Section -->
+                        <Border Grid.Row="0" Background="#EBF8FF" BorderBrush="#3182CE" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,0,0,20">
+                            <StackPanel>
+                                <TextBlock Text="📊 实时流媒体监控" FontSize="16" FontWeight="Bold" Foreground="#2B6CB0" Margin="0,0,0,10"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="#2D3748" LineHeight="22">
+                                    <Run Text="实时监控 UE 像素流的性能指标，包括视频质量、网络状态、延迟等关键信息。"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        
+                        <!-- Monitoring Content -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <!-- Left Column - Video & Network Stats -->
+                            <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                <TextBlock Text="🎥 视频流监控" Style="{StaticResource SectionHeader}"/>
+                                
+                                <!-- Video Stats Panel -->
+                                <Border Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,5,0,20">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="分辨率:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtResolution" Text="1920 x 1080" Foreground="#2D3748" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="帧率:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtFPS" Text="30 Hz" Foreground="#2D3748" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="量化参数:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="TxtQuantization" Text="3" Foreground="#2D3748" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="码率:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="TxtBitrate" Text="16,884,892 bps" Foreground="#2D3748" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="已解码帧:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="TxtFramesDecoded" Text="184" Foreground="#2D3748" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="丢帧数:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="5" Grid.Column="1" x:Name="TxtFramesDropped" Text="0" Foreground="#38A169" Margin="10,5"/>
+                                    </Grid>
+                                </Border>
+                                
+                                <!-- Network Stats Panel -->
+                                <TextBlock Text="🌐 网络监控" Style="{StaticResource SectionHeader}"/>
+                                <Border Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,5">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="延迟 (RTT):" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtLatency" Text="0 s" Foreground="#38A169" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="上行数据:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtDataChannelUp" Text="↑↑ 4 B" Foreground="#2D3748" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="下行数据:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="TxtDataChannelDown" Text="↓↓ 12,191 B" Foreground="#2D3748" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="数据包丢失:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="1" x:Name="TxtPacketsLost" Text="0" Foreground="#38A169" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="运行时间:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="TxtCurrentTime" Text="6.041 s" Foreground="#2D3748" Margin="10,5"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+                            
+                            <!-- Right Column - Audio & System Stats -->
+                            <StackPanel Grid.Column="1" Margin="20,0,0,0">
+                                <TextBlock Text="🔊 音频监控" Style="{StaticResource SectionHeader}"/>
+                                
+                                <!-- Audio Stats Panel -->
+                                <Border Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,5,0,20">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="音频状态:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="TxtAudioStatus" Text="启用" Foreground="#38A169" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="音频数据:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtAudioData" Text="↑↓ 11,965 B" Foreground="#2D3748" Margin="10,5"/>
+                                        
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="音频协议:" FontWeight="SemiBold" Margin="0,5"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="TxtAudioProtocol" Text="udp://10.0.15.231:52207" Foreground="#2D3748" Margin="10,5"/>
+                                    </Grid>
+                                </Border>
+                                
+                                <!-- Connection Status Panel -->
+                                <TextBlock Text="🔗 连接状态" Style="{StaticResource SectionHeader}"/>
+                                <Border Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,5,0,20">
+                                    <StackPanel>
+                                        <Grid Margin="0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse x:Name="StreamingStatusIndicator" Width="12" Height="12" Fill="LimeGreen" Margin="5,0,10,0"/>
+                                            <TextBlock Grid.Column="1" x:Name="TxtStreamingStatus" Text="像素流连接正常" VerticalAlignment="Center" Foreground="#38A169"/>
+                                        </Grid>
+                                        
+                                        <Grid Margin="0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse x:Name="WebRTCConnectionIndicator" Width="12" Height="12" Fill="LimeGreen" Margin="5,0,10,0"/>
+                                            <TextBlock Grid.Column="1" x:Name="TxtWebRTCConnection" Text="WebRTC 连接活跃" VerticalAlignment="Center" Foreground="#38A169"/>
+                                        </Grid>
+                                        
+                                        <Grid Margin="0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse x:Name="UEConnectionIndicator" Width="12" Height="12" Fill="LimeGreen" Margin="5,0,10,0"/>
+                                            <TextBlock Grid.Column="1" x:Name="TxtUEConnection" Text="UE 引擎响应正常" VerticalAlignment="Center" Foreground="#38A169"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                                
+                                <!-- Control Panel -->
+                                <TextBlock Text="⚙️ 监控控制" Style="{StaticResource SectionHeader}"/>
+                                <Border Background="#F7FAFC" CornerRadius="5" Padding="15" Margin="0,5">
+                                    <StackPanel>
+                                        <CheckBox x:Name="ChkEnableMonitoring" Content="启用实时监控" IsChecked="True" Margin="0,5" Checked="OnMonitoringToggle" Unchecked="OnMonitoringToggle"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,10">
+                                            <TextBlock Text="刷新间隔:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <ComboBox x:Name="CmbRefreshInterval" Width="120" SelectedIndex="1">
+                                                <ComboBoxItem Content="0.5 秒"/>
+                                                <ComboBoxItem Content="1 秒"/>
+                                                <ComboBoxItem Content="2 秒"/>
+                                                <ComboBoxItem Content="5 秒"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        
+                                        <Button x:Name="BtnResetStats" Content="🔄 重置统计" Click="BtnResetStats_Click" Background="#718096" Margin="0,10,0,0"/>
+                                        <Button x:Name="BtnExportStats" Content="📊 导出数据" Click="BtnExportStats_Click" Background="#3182CE" Margin="0,5,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </ScrollViewer>
             </TabItem>

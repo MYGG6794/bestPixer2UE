@@ -14,8 +14,7 @@ using bestPixer2UE.Utils;
 using Serilog;
 
 namespace bestPixer2UE
-{
-    /// <summary>
+{    /// <summary>
     /// Simplified MainWindow for initial compilation
     /// </summary>
     public partial class MainWindow : Window
@@ -25,14 +24,25 @@ namespace bestPixer2UE
         private readonly PeerStreamEnterpriseService _peerStreamService;
         private readonly StreamingManagementService _streamingService;
         private readonly UEControlService _ueControlService;
-        private readonly MultiPortService _multiPortService;        public MainWindow(
+        private readonly MultiPortService _multiPortService;
+        private readonly MonitoringService _monitoringService;
+          // 用于跟踪关键配置变更
+        private int _lastKnownPort = -1;
+        private Timer? _configSyncTimer;
+        
+        // 实时监控相关
+        private Timer? _monitoringTimer;
+        private Random _random = new Random();
+        private DateTime _monitoringStartTime = DateTime.Now;        public MainWindow(
             ConfigurationManager configManager,
             ProcessManager processManager,
             LoggingService loggingService,
             PeerStreamEnterpriseService peerStreamService,
             StreamingManagementService streamingService,
             UEControlService ueControlService,
-            MultiPortService multiPortService)        {
+            MultiPortService multiPortService,
+            MonitoringService monitoringService)
+        {
             _configManager = configManager;
             _processManager = processManager;
             _loggingService = loggingService;
@@ -40,11 +50,16 @@ namespace bestPixer2UE
             _streamingService = streamingService;
             _ueControlService = ueControlService;
             _multiPortService = multiPortService;
+            _monitoringService = monitoringService;// 初始化端口跟踪
+            _lastKnownPort = _configManager.Configuration.PORT;
             
-            InitializeComponent(); // Essential for XAML loading
+            InitializeComponent(); // Essential for XAML loading - MUST be called first
             
             // Initialize UI with configuration
             LoadConfigurationToUI();
+            
+            // 初始化实时监控 - 在XAML加载后初始化
+            InitializeMonitoring();
             
             // 初始化服务状态指示器
             UpdateServiceStatusIndicators();
@@ -1037,8 +1052,7 @@ namespace bestPixer2UE
                 });
             };
 
-            _peerStreamService.LogMessage += (sender, message) =>
-            {
+            _peerStreamService.LogMessage += (sender, message) =>            {
                 Dispatcher.Invoke(() =>
                 {
                     if (this.FindName("TxtLog") is TextBox txtLog)
@@ -1047,9 +1061,12 @@ namespace bestPixer2UE
                         txtLog.ScrollToEnd();
                     }
                 });
-            };        }
+            };
+        }
 
-        #region 新增配置事件处理        /// <summary>
+        #region 新增配置事件处理
+        
+        /// <summary>
         /// 配置变更事件处理
         /// </summary>
         private void OnConfigChanged(object sender, RoutedEventArgs e)
@@ -1060,6 +1077,9 @@ namespace bestPixer2UE
                 SaveUIToConfiguration();
                 _configManager.SaveConfiguration();
                 
+                // 检查是否有关键配置变更（如端口）
+                CheckAndScheduleConfigSync();
+                
                 // 更新推流设置预览
                 UpdateStreamingPreview();
                 
@@ -1069,9 +1089,7 @@ namespace bestPixer2UE
             {
                 Log.Error(ex, "Failed to auto-save configuration");
             }
-        }
-
-        /// <summary>
+        }/// <summary>
         /// 配置变更事件处理 (TextBox)
         /// </summary>
         private void OnConfigChanged(object sender, TextChangedEventArgs e)
@@ -1081,6 +1099,9 @@ namespace bestPixer2UE
                 // 自动保存配置
                 SaveUIToConfiguration();
                 _configManager.SaveConfiguration();
+                
+                // 检查是否有关键配置变更（如端口）
+                CheckAndScheduleConfigSync();
                 
                 // 更新推流设置预览
                 UpdateStreamingPreview();
@@ -1132,6 +1153,62 @@ namespace bestPixer2UE
                     button.IsEnabled = true;
                     button.Content = "🔄 立即同步配置";
                 }
+            }
+        }
+
+        /// <summary>
+        /// 检查关键配置变更并安排延迟同步
+        /// </summary>
+        private void CheckAndScheduleConfigSync()
+        {
+            try
+            {
+                var currentConfig = _configManager.Configuration;
+                bool needsSync = false;
+                
+                // 检查端口是否发生变更
+                if (currentConfig.PORT != _lastKnownPort)
+                {
+                    Log.Information("Port configuration changed from {OldPort} to {NewPort}", _lastKnownPort, currentConfig.PORT);
+                    _lastKnownPort = currentConfig.PORT;
+                    needsSync = true;
+                }
+                
+                if (needsSync)
+                {
+                    // 取消现有的定时器
+                    _configSyncTimer?.Dispose();
+                    
+                    // 设置3秒延迟同步，避免频繁同步
+                    _configSyncTimer = new Timer(async _ =>
+                    {
+                        try
+                        {
+                            Log.Information("Auto-syncing configuration to PeerStreamEnterprise due to critical changes...");
+                            await _peerStreamService.SyncConfigurationAsync();
+                            Log.Information("Configuration auto-sync completed");
+                            
+                            // 在UI线程更新状态
+                            Dispatcher.BeginInvoke(() =>
+                            {
+                                UpdateServiceStatusIndicators();
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Failed to auto-sync configuration");
+                        }
+                        finally
+                        {
+                            _configSyncTimer?.Dispose();
+                            _configSyncTimer = null;
+                        }
+                    }, null, TimeSpan.FromSeconds(3), TimeSpan.FromMilliseconds(-1));
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to check configuration sync needs");
             }
         }
 
@@ -1340,13 +1417,16 @@ namespace bestPixer2UE
                 Log.Error(ex, "Error during UnrealGame cleanup test");
                 MessageBox.Show($"UnrealGame清理测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        }
-
-        protected override void OnClosed(EventArgs e)
+        }        protected override void OnClosed(EventArgs e)
         {
             try
             {
-                Log.Information("Application shutting down...");                
+                Log.Information("Application shutting down...");
+                
+                // 停止监控定时器
+                _monitoringTimer?.Dispose();
+                _configSyncTimer?.Dispose();
+                
                 // Stop all services
                 _multiPortService?.StopAsync().Wait(5000);
                 _streamingService?.StopAsync().Wait(5000);
@@ -1366,5 +1446,895 @@ namespace bestPixer2UE
                 base.OnClosed(e);
             }
         }
+        
+        #region 实时监控相关方法        /// <summary>
+        /// 初始化实时监控系统
+        /// </summary>
+        private void InitializeMonitoring()
+        {
+            // 延迟初始化监控定时器，确保UI元素已经加载
+            Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    // 初始化监控定时器（默认1秒刷新）
+                    _monitoringTimer = new Timer(UpdateMonitoringData, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+                    Log.Information("Real-time monitoring initialized");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to initialize monitoring");
+                }
+            }, System.Windows.Threading.DispatcherPriority.Loaded);
+        }        /// <summary>
+        /// 更新监控数据
+        /// </summary>
+        private void UpdateMonitoringData(object? state)
+        {
+            try
+            {
+                // 在UI线程中更新界面
+                Dispatcher.BeginInvoke(async () =>
+                {
+                    try
+                    {
+                        // 尝试获取真实监控数据
+                        var serverUrl = _configManager.Configuration.SignalingServerUrl;
+                        var monitoringData = await _monitoringService.GetMonitoringDataAsync(serverUrl);
+                        
+                        // 使用真实数据更新界面
+                        UpdateVideoStatsFromData(monitoringData.Video);
+                        UpdateNetworkStatsFromData(monitoringData.Network);
+                        UpdateAudioStatsFromData(monitoringData.Audio);
+                        UpdateConnectionStatusFromData(monitoringData.Connection);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Error updating monitoring data on UI thread");
+                        // 降级到原有的模拟数据更新方法
+                        UpdateVideoStats();
+                        UpdateNetworkStats();
+                        UpdateAudioStats();
+                        UpdateConnectionStatus();
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error in monitoring timer callback");
+            }
+        }
+
+        #region 基于真实数据的监控更新方法
+
+        /// <summary>
+        /// 使用真实数据更新视频统计信息
+        /// </summary>
+        private void UpdateVideoStatsFromData(VideoStats videoStats)
+        {
+            if (this.FindName("TxtResolution") is TextBlock txtResolution)
+                txtResolution.Text = $"{videoStats.Width} x {videoStats.Height}";
+            
+            if (this.FindName("TxtFPS") is TextBlock txtFPS)
+                txtFPS.Text = $"{videoStats.FrameRate} Hz";
+            
+            if (this.FindName("TxtQuantization") is TextBlock txtQuantization)
+                txtQuantization.Text = videoStats.QuantizationParameter.ToString();
+            
+            if (this.FindName("TxtBitrate") is TextBlock txtBitrate)
+                txtBitrate.Text = $"{videoStats.Bitrate:N0} bps";
+            
+            if (this.FindName("TxtFramesDecoded") is TextBlock txtFramesDecoded)
+                txtFramesDecoded.Text = videoStats.FramesDecoded.ToString();
+            
+            if (this.FindName("TxtFramesDropped") is TextBlock txtFramesDropped)
+            {
+                txtFramesDropped.Text = videoStats.FramesDropped.ToString();
+                txtFramesDropped.Foreground = videoStats.FramesDropped == 0 ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+        }
+
+        /// <summary>
+        /// 使用真实数据更新网络统计信息
+        /// </summary>
+        private void UpdateNetworkStatsFromData(NetworkStats networkStats)
+        {
+            if (this.FindName("TxtLatency") is TextBlock txtLatency)
+            {
+                txtLatency.Text = $"{networkStats.LatencyMs} ms";
+                txtLatency.Foreground = networkStats.LatencyMs < 50 ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            if (this.FindName("TxtDataChannelUp") is TextBlock txtDataChannelUp)
+                txtDataChannelUp.Text = $"↑↑ {networkStats.DataChannelUp} B";
+            
+            if (this.FindName("TxtDataChannelDown") is TextBlock txtDataChannelDown)
+                txtDataChannelDown.Text = $"↓↓ {networkStats.DataChannelDown:N0} B";
+            
+            if (this.FindName("TxtPacketsLost") is TextBlock txtPacketsLost)
+            {
+                txtPacketsLost.Text = networkStats.PacketsLost.ToString();
+                txtPacketsLost.Foreground = networkStats.PacketsLost == 0 ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            if (this.FindName("TxtCurrentTime") is TextBlock txtCurrentTime)
+                txtCurrentTime.Text = $"{networkStats.CurrentTime:F1} s";
+        }
+
+        /// <summary>
+        /// 使用真实数据更新音频统计信息
+        /// </summary>
+        private void UpdateAudioStatsFromData(AudioStats audioStats)
+        {
+            if (this.FindName("TxtAudioStatus") is TextBlock txtAudioStatus)
+            {
+                txtAudioStatus.Text = audioStats.IsEnabled ? "启用" : "禁用";
+                txtAudioStatus.Foreground = audioStats.IsEnabled ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            if (this.FindName("TxtAudioData") is TextBlock txtAudioData)
+                txtAudioData.Text = $"↑↓ {audioStats.AudioData:N0} B";
+            
+            if (this.FindName("TxtAudioProtocol") is TextBlock txtAudioProtocol)
+                txtAudioProtocol.Text = audioStats.Protocol;
+        }
+
+        /// <summary>
+        /// 使用真实数据更新连接状态
+        /// </summary>
+        private void UpdateConnectionStatusFromData(ConnectionStats connectionStats)
+        {
+            // 更新像素流状态
+            if (this.FindName("StreamingStatusIndicator") is System.Windows.Shapes.Ellipse streamingIndicator)
+            {
+                streamingIndicator.Fill = connectionStats.IsStreamingConnected ? 
+                    System.Windows.Media.Brushes.LimeGreen : 
+                    System.Windows.Media.Brushes.Red;
+            }
+            
+            if (this.FindName("TxtStreamingStatus") is TextBlock txtStreamingStatus)
+            {
+                txtStreamingStatus.Text = connectionStats.IsStreamingConnected ? "像素流连接正常" : "像素流未连接";
+                txtStreamingStatus.Foreground = connectionStats.IsStreamingConnected ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            // 更新WebRTC连接状态
+            if (this.FindName("WebRTCConnectionIndicator") is System.Windows.Shapes.Ellipse webRTCIndicator)
+            {
+                webRTCIndicator.Fill = connectionStats.IsWebRTCConnected ? 
+                    System.Windows.Media.Brushes.LimeGreen : 
+                    System.Windows.Media.Brushes.Red;
+            }
+            
+            if (this.FindName("TxtWebRTCConnection") is TextBlock txtWebRTCConnection)
+            {
+                txtWebRTCConnection.Text = connectionStats.IsWebRTCConnected ? "WebRTC 连接活跃" : "WebRTC 连接断开";
+                txtWebRTCConnection.Foreground = connectionStats.IsWebRTCConnected ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+        }
+
+        #endregion
+
+        /// <summary>
+        /// 配置变更事件处理
+        /// </summary>
+        private void OnConfigChanged(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // 自动保存配置
+                SaveUIToConfiguration();
+                _configManager.SaveConfiguration();
+                
+                // 检查是否有关键配置变更（如端口）
+                CheckAndScheduleConfigSync();
+                
+                // 更新推流设置预览
+                UpdateStreamingPreview();
+                
+                Log.Information("Configuration auto-saved due to UI change");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to auto-save configuration");
+            }
+        }/// <summary>
+        /// 配置变更事件处理 (TextBox)
+        /// </summary>
+        private void OnConfigChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                // 自动保存配置
+                SaveUIToConfiguration();
+                _configManager.SaveConfiguration();
+                
+                // 检查是否有关键配置变更（如端口）
+                CheckAndScheduleConfigSync();
+                
+                // 更新推流设置预览
+                UpdateStreamingPreview();
+                
+                Log.Information("Configuration auto-saved due to text change");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to auto-save configuration");
+            }
+        }
+
+        /// <summary>
+        /// 立即同步配置到PeerStreamEnterprise
+        /// </summary>
+        private async void BtnSyncConfig_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var button = sender as Button;
+                if (button != null)
+                {
+                    button.IsEnabled = false;
+                    button.Content = "🔄 同步中...";
+                }
+
+                // 保存当前配置
+                SaveUIToConfiguration();
+                _configManager.SaveConfiguration();
+                
+                // 同步到PeerStreamEnterprise
+                await _peerStreamService.SyncConfigurationAsync();
+                
+                MessageBox.Show("配置已成功同步到PeerStreamEnterprise服务", "同步成功", 
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                
+                Log.Information("Configuration manually synced to PeerStreamEnterprise");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to sync configuration");
+                MessageBox.Show($"配置同步失败: {ex.Message}", "同步失败", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (sender is Button button)
+                {
+                    button.IsEnabled = true;
+                    button.Content = "🔄 立即同步配置";
+                }
+            }
+        }
+
+        /// <summary>
+        /// 检查关键配置变更并安排延迟同步
+        /// </summary>
+        private void CheckAndScheduleConfigSync()
+        {
+            try
+            {
+                var currentConfig = _configManager.Configuration;
+                bool needsSync = false;
+                
+                // 检查端口是否发生变更
+                if (currentConfig.PORT != _lastKnownPort)
+                {
+                    Log.Information("Port configuration changed from {OldPort} to {NewPort}", _lastKnownPort, currentConfig.PORT);
+                    _lastKnownPort = currentConfig.PORT;
+                    needsSync = true;
+                }
+                
+                if (needsSync)
+                {
+                    // 取消现有的定时器
+                    _configSyncTimer?.Dispose();
+                    
+                    // 设置3秒延迟同步，避免频繁同步
+                    _configSyncTimer = new Timer(async _ =>
+                    {
+                        try
+                        {
+                            Log.Information("Auto-syncing configuration to PeerStreamEnterprise due to critical changes...");
+                            await _peerStreamService.SyncConfigurationAsync();
+                            Log.Information("Configuration auto-sync completed");
+                            
+                            // 在UI线程更新状态
+                            Dispatcher.BeginInvoke(() =>
+                            {
+                                UpdateServiceStatusIndicators();
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Error(ex, "Failed to auto-sync configuration");
+                        }
+                        finally
+                        {
+                            _configSyncTimer?.Dispose();
+                            _configSyncTimer = null;
+                        }
+                    }, null, TimeSpan.FromSeconds(3), TimeSpan.FromMilliseconds(-1));
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to check configuration sync needs");
+            }
+        }
+
+        /// <summary>
+        /// 更新推流设置预览
+        /// </summary>
+        private void UpdateStreamingPreview()
+        {
+            try
+            {
+                var config = _configManager.GetConfiguration();
+                var preview = $"分辨率：{config.ResolutionX}x{config.ResolutionY} | " +
+                             $"帧率：{config.WebRTCFps}fps | " +
+                             $"离屏渲染：{(config.RenderOffScreen ? "开启" : "关闭")} | " +
+                             $"无人值守：{(config.Unattended ? "开启" : "关闭")}";
+                
+                if (this.FindName("TxtStreamingPreview") is TextBlock txtStreamingPreview)
+                {
+                    txtStreamingPreview.Text = preview;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to update streaming preview");
+            }
+        }
+
+        /// <summary>
+        /// 高清预设
+        /// </summary>
+        private void BtnPresetHD_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (this.FindName("TxtResolutionX") is TextBox txtResolutionX)
+                    txtResolutionX.Text = "1920";
+                if (this.FindName("TxtResolutionY") is TextBox txtResolutionY)
+                    txtResolutionY.Text = "1080";
+                if (this.FindName("TxtWebRTCFps") is TextBox txtWebRTCFps)
+                    txtWebRTCFps.Text = "30";
+                if (this.FindName("ChkRenderOffScreen") is CheckBox chkRenderOffScreen)
+                    chkRenderOffScreen.IsChecked = true;
+                if (this.FindName("ChkUnattended") is CheckBox chkUnattended)
+                    chkUnattended.IsChecked = true;
+                    
+                UpdateStreamingPreview();
+                Log.Information("Applied HD preset configuration");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to apply HD preset");
+            }
+        }
+
+        /// <summary>
+        /// 标清预设
+        /// </summary>
+        private void BtnPresetSD_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (this.FindName("TxtResolutionX") is TextBox txtResolutionX)
+                    txtResolutionX.Text = "1280";
+                if (this.FindName("TxtResolutionY") is TextBox txtResolutionY)
+                    txtResolutionY.Text = "720";
+                if (this.FindName("TxtWebRTCFps") is TextBox txtWebRTCFps)
+                    txtWebRTCFps.Text = "30";
+                if (this.FindName("ChkRenderOffScreen") is CheckBox chkRenderOffScreen)
+                    chkRenderOffScreen.IsChecked = true;
+                if (this.FindName("ChkUnattended") is CheckBox chkUnattended)
+                    chkUnattended.IsChecked = true;
+                    
+                UpdateStreamingPreview();
+                Log.Information("Applied SD preset configuration");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to apply SD preset");
+            }
+        }
+
+        /// <summary>
+        /// 性能优先预设
+        /// </summary>
+        private void BtnPresetPerformance_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (this.FindName("TxtResolutionX") is TextBox txtResolutionX)
+                    txtResolutionX.Text = "1280";
+                if (this.FindName("TxtResolutionY") is TextBox txtResolutionY)
+                    txtResolutionY.Text = "720";
+                if (this.FindName("TxtWebRTCFps") is TextBox txtWebRTCFps)
+                    txtWebRTCFps.Text = "24";
+                if (this.FindName("ChkRenderOffScreen") is CheckBox chkRenderOffScreen)
+                    chkRenderOffScreen.IsChecked = true;
+                if (this.FindName("ChkUnattended") is CheckBox chkUnattended)
+                    chkUnattended.IsChecked = true;
+                if (this.FindName("ChkAudioMixer") is CheckBox chkAudioMixer)
+                    chkAudioMixer.IsChecked = false;
+                    
+                UpdateStreamingPreview();
+                Log.Information("Applied performance preset configuration");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to apply performance preset");
+            }
+        }
+
+        #endregion
+
+        /// <summary>
+        /// 调试：检查当前运行的UE相关进程
+        /// </summary>
+        private void DebugCheckUEProcesses()
+        {
+            try
+            {
+                var allProcesses = Process.GetProcesses();
+                var ueRelatedProcesses = allProcesses
+                    .Where(p => p.ProcessName.IndexOf("Unreal", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                p.ProcessName.IndexOf("UE", StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToArray();
+
+                Log.Information("Found {Count} UE-related processes:", ueRelatedProcesses.Length);
+                foreach (var proc in ueRelatedProcesses)
+                {
+                    try
+                    {
+                        Log.Information("  - {ProcessName} (PID: {ProcessId})", proc.ProcessName, proc.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Error reading process info");
+                    }
+                    finally
+                    {
+                        proc.Dispose();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error checking UE processes");
+            }
+        }
+
+        /// <summary>
+        /// 测试UnrealGame进程清理 - 调试按钮
+        /// </summary>
+        private void BtnTestUnrealGameCleanup_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var result = MessageBox.Show("这将执行UnrealGame专项重复清理测试。\n\n此操作会强制终止所有UnrealGame相关进程，确定继续吗？", 
+                    "UnrealGame专项清理", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                
+                if (result == MessageBoxResult.Yes)
+                {
+                    Log.Warning("Starting UnrealGame-specific repeated cleanup test...");
+                    
+                    // 先显示当前的UnrealGame进程
+                    var beforeCleanup = _processManager.GetRemainingUnrealGameProcesses();
+                    Log.Information("Before cleanup: Found {Count} UnrealGame processes", beforeCleanup.Count);
+                    
+                    if (beforeCleanup.Count == 0)
+                    {
+                        MessageBox.Show("当前没有发现UnrealGame进程", "清理测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                    
+                    // 执行重复清理
+                    var killedCount = _processManager.RepeatedUnrealGameCleanup(maxAttempts: 5);
+                    
+                    // 检查清理后的状态
+                    var afterCleanup = _processManager.GetRemainingUnrealGameProcesses();
+                    
+                    string message = $"UnrealGame专项清理完成：\n\n" +
+                                   $"清理前进程数：{beforeCleanup.Count}\n" +
+                                   $"清理后进程数：{afterCleanup.Count}\n" +
+                                   $"总计清理数：{killedCount}\n\n";
+                    
+                    if (afterCleanup.Count == 0)
+                    {
+                        message += "✅ 所有UnrealGame进程已成功清理！";
+                        MessageBox.Show(message, "清理成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        message += $"⚠️ 仍有 {afterCleanup.Count} 个进程残留：\n";
+                        message += string.Join("\n", afterCleanup.Take(5).Select(p => $"- {p.ProcessName} (PID: {p.Id})"));
+                        if (afterCleanup.Count > 5)
+                        {
+                            message += $"\n... 还有 {afterCleanup.Count - 5} 个进程";
+                        }
+                        MessageBox.Show(message, "清理完成但有残留", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    
+                    Log.Warning("UnrealGame cleanup test completed. Before: {Before}, After: {After}, Killed: {Killed}", 
+                        beforeCleanup.Count, afterCleanup.Count, killedCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during UnrealGame cleanup test");
+                MessageBox.Show($"UnrealGame清理测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }        protected override void OnClosed(EventArgs e)
+        {
+            try
+            {
+                Log.Information("Application shutting down...");
+                
+                // 停止监控定时器
+                _monitoringTimer?.Dispose();
+                _configSyncTimer?.Dispose();
+                
+                // Stop all services
+                _multiPortService?.StopAsync().Wait(5000);
+                _streamingService?.StopAsync().Wait(5000);
+                _ueControlService?.StopAsync().Wait(5000);
+                
+                // Stop UE processes
+                _processManager?.StopAllUEProcesses();
+                
+                Log.Information("Application shutdown completed");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during application shutdown");
+            }
+            finally
+            {
+                base.OnClosed(e);
+            }
+        }
+        
+        #region 实时监控相关方法        /// <summary>
+        /// 初始化实时监控系统
+        /// </summary>
+        private void InitializeMonitoring()
+        {
+            // 延迟初始化监控定时器，确保UI元素已经加载
+            Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    // 初始化监控定时器（默认1秒刷新）
+                    _monitoringTimer = new Timer(UpdateMonitoringData, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+                    Log.Information("Real-time monitoring initialized");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to initialize monitoring");
+                }            }, System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        #region 模拟数据更新方法（降级方案）
+
+        /// <summary>
+        /// 更新视频统计信息
+        /// </summary>
+        private void UpdateVideoStats()
+        {
+            var config = _configManager.Configuration;
+            var elapsedSeconds = (DateTime.Now - _monitoringStartTime).TotalSeconds;
+            
+            // 模拟实际数据，在生产环境中这些应该从PeerStreamEnterprise API获取
+            if (this.FindName("TxtResolution") is TextBlock txtResolution)
+                txtResolution.Text = $"{config.ResolutionX} x {config.ResolutionY}";
+            
+            if (this.FindName("TxtFPS") is TextBlock txtFPS)
+                txtFPS.Text = $"{config.TargetFPS} Hz";
+            
+            if (this.FindName("TxtQuantization") is TextBlock txtQuantization)
+                txtQuantization.Text = _random.Next(1, 8).ToString(); // 模拟量化参数变化
+            
+            if (this.FindName("TxtBitrate") is TextBlock txtBitrate)
+            {
+                // 模拟码率变化
+                var bitrate = _random.Next(10000000, 20000000);
+                txtBitrate.Text = $"{bitrate:N0} bps";
+            }
+            
+            if (this.FindName("TxtFramesDecoded") is TextBlock txtFramesDecoded)
+            {
+                // 基于时间和帧率计算帧数
+                var frames = (int)(elapsedSeconds * config.TargetFPS);
+                txtFramesDecoded.Text = frames.ToString();
+            }
+            
+            if (this.FindName("TxtFramesDropped") is TextBlock txtFramesDropped)
+            {
+                // 模拟偶尔的丢帧
+                var droppedFrames = _random.Next(0, 5);
+                txtFramesDropped.Text = droppedFrames.ToString();
+                txtFramesDropped.Foreground = droppedFrames == 0 ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+        }
+
+        /// <summary>
+        /// 更新网络统计信息
+        /// </summary>
+        private void UpdateNetworkStats()
+        {
+            var elapsedSeconds = (DateTime.Now - _monitoringStartTime).TotalSeconds;
+            
+            if (this.FindName("TxtLatency") is TextBlock txtLatency)
+            {
+                // 模拟网络延迟
+                var latency = _random.Next(0, 50);
+                txtLatency.Text = $"{latency} ms";
+                txtLatency.Foreground = latency < 20 ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            if (this.FindName("TxtDataChannelUp") is TextBlock txtDataChannelUp)
+            {
+                var upBytes = _random.Next(1, 100);
+                txtDataChannelUp.Text = $"↑↑ {upBytes} B";
+            }
+            
+            if (this.FindName("TxtDataChannelDown") is TextBlock txtDataChannelDown)
+            {
+                var downBytes = _random.Next(1000, 20000);
+                txtDataChannelDown.Text = $"↓↓ {downBytes:N0} B";
+            }
+            
+            if (this.FindName("TxtPacketsLost") is TextBlock txtPacketsLost)
+            {
+                var packetsLost = _random.Next(0, 3);
+                txtPacketsLost.Text = packetsLost.ToString();
+                txtPacketsLost.Foreground = packetsLost == 0 ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            if (this.FindName("TxtCurrentTime") is TextBlock txtCurrentTime)
+            {
+                txtCurrentTime.Text = $"{elapsedSeconds:F1} s";
+            }
+        }
+
+        /// <summary>
+        /// 更新音频统计信息
+        /// </summary>
+        private void UpdateAudioStats()
+        {
+            var config = _configManager.Configuration;
+            
+            if (this.FindName("TxtAudioStatus") is TextBlock txtAudioStatus)
+            {
+                txtAudioStatus.Text = config.AudioMixer ? "启用" : "禁用";
+                txtAudioStatus.Foreground = config.AudioMixer ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            if (this.FindName("TxtAudioData") is TextBlock txtAudioData)
+            {
+                var audioBytes = _random.Next(5000, 15000);
+                txtAudioData.Text = $"↑↓ {audioBytes:N0} B";
+            }
+            
+            if (this.FindName("TxtAudioProtocol") is TextBlock txtAudioProtocol)
+            {
+                var port = config.UEWebSocketPort + _random.Next(1000, 9999);
+                txtAudioProtocol.Text = $"udp://{config.MachineIp}:{port}";
+            }
+        }
+
+        /// <summary>
+        /// 更新连接状态
+        /// </summary>
+        private void UpdateConnectionStatus()
+        {
+            var isStreamingRunning = _streamingService?.IsRunning ?? false;
+            var hasUEProcess = _processManager?.GetRunningUEProcesses()?.Any() ?? false;
+            
+            // 更新像素流状态
+            if (this.FindName("StreamingStatusIndicator") is System.Windows.Shapes.Ellipse streamingIndicator)
+            {
+                streamingIndicator.Fill = isStreamingRunning ? 
+                    System.Windows.Media.Brushes.LimeGreen : 
+                    System.Windows.Media.Brushes.Red;
+            }
+            
+            if (this.FindName("TxtStreamingStatus") is TextBlock txtStreamingStatus)
+            {
+                txtStreamingStatus.Text = isStreamingRunning ? "像素流连接正常" : "像素流未连接";
+                txtStreamingStatus.Foreground = isStreamingRunning ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            // 更新WebRTC连接状态
+            if (this.FindName("WebRTCConnectionIndicator") is System.Windows.Shapes.Ellipse webRTCIndicator)
+            {
+                webRTCIndicator.Fill = isStreamingRunning ? 
+                    System.Windows.Media.Brushes.LimeGreen : 
+                    System.Windows.Media.Brushes.Red;
+            }
+            
+            if (this.FindName("TxtWebRTCConnection") is TextBlock txtWebRTCConnection)
+            {
+                txtWebRTCConnection.Text = isStreamingRunning ? "WebRTC 连接活跃" : "WebRTC 连接断开";
+                txtWebRTCConnection.Foreground = isStreamingRunning ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+            
+            // 更新UE引擎状态
+            if (this.FindName("UEConnectionIndicator") is System.Windows.Shapes.Ellipse ueIndicator)
+            {
+                ueIndicator.Fill = hasUEProcess ? 
+                    System.Windows.Media.Brushes.LimeGreen : 
+                    System.Windows.Media.Brushes.Red;
+            }
+            
+            if (this.FindName("TxtUEConnection") is TextBlock txtUEConnection)
+            {
+                txtUEConnection.Text = hasUEProcess ? "UE 引擎响应正常" : "UE 引擎未运行";
+                txtUEConnection.Foreground = hasUEProcess ? 
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(56, 161, 105)) :
+                    new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(229, 62, 62));
+            }
+        }
+
+        /// <summary>
+        /// 监控开关切换事件
+        /// </summary>
+        private void OnMonitoringToggle(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is CheckBox chkEnableMonitoring)
+                {
+                    if (chkEnableMonitoring.IsChecked == true)
+                    {
+                        // 启用监控
+                        var interval = GetRefreshInterval();
+                        _monitoringTimer?.Dispose();
+                        _monitoringTimer = new Timer(UpdateMonitoringData, null, TimeSpan.Zero, interval);
+                        Log.Information("Real-time monitoring enabled with interval: {Interval}", interval);
+                    }
+                    else
+                    {
+                        // 禁用监控
+                        _monitoringTimer?.Dispose();
+                        _monitoringTimer = null;
+                        Log.Information("Real-time monitoring disabled");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error toggling monitoring state");
+            }
+        }
+
+        /// <summary>
+        /// 获取刷新间隔
+        /// </summary>
+        private TimeSpan GetRefreshInterval()
+        {
+            if (this.FindName("CmbRefreshInterval") is ComboBox cmbRefreshInterval)
+            {
+                return cmbRefreshInterval.SelectedIndex switch
+                {
+                    0 => TimeSpan.FromMilliseconds(500),
+                    1 => TimeSpan.FromSeconds(1),
+                    2 => TimeSpan.FromSeconds(2),
+                    3 => TimeSpan.FromSeconds(5),
+                    _ => TimeSpan.FromSeconds(1)
+                };
+            }
+            return TimeSpan.FromSeconds(1);
+        }
+
+        /// <summary>
+        /// 重置统计按钮点击事件
+        /// </summary>
+        private void BtnResetStats_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _monitoringStartTime = DateTime.Now;
+                Log.Information("Monitoring statistics reset");
+                MessageBox.Show("监控统计数据已重置", "重置完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error resetting monitoring statistics");
+                MessageBox.Show($"重置统计数据失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 导出数据按钮点击事件
+        /// </summary>
+        private void BtnExportStats_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var saveFileDialog = new Microsoft.Win32.SaveFileDialog
+                {
+                    Filter = "CSV 文件|*.csv|文本文件|*.txt|所有文件|*.*",
+                    Title = "导出监控数据",
+                    FileName = $"monitoring_data_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+                };
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    var csvContent = GenerateMonitoringReport();
+                    File.WriteAllText(saveFileDialog.FileName, csvContent);
+                    
+                    Log.Information("Monitoring data exported to: {FilePath}", saveFileDialog.FileName);
+                    MessageBox.Show($"监控数据已导出到: {saveFileDialog.FileName}", "导出成功", 
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error exporting monitoring data");
+                MessageBox.Show($"导出数据失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 生成监控报告
+        /// </summary>
+        private string GenerateMonitoringReport()
+        {
+            var config = _configManager.Configuration;
+            var report = new System.Text.StringBuilder();
+            
+            report.AppendLine("bestPixer2UE 监控数据报告");
+            report.AppendLine($"生成时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            report.AppendLine($"监控开始时间: {_monitoringStartTime:yyyy-MM-dd HH:mm:ss}");
+            report.AppendLine($"运行时间: {(DateTime.Now - _monitoringStartTime):hh\\:mm\\:ss}");
+            report.AppendLine();
+            
+            report.AppendLine("=== 配置信息 ===");
+            report.AppendLine($"主信令端口: {config.PORT}");
+            report.AppendLine($"分辨率: {config.ResolutionX} x {config.ResolutionY}");
+            report.AppendLine($"目标帧率: {config.TargetFPS} Hz");
+            report.AppendLine($"音频混合器: {(config.AudioMixer ? "启用" : "禁用")}");
+            report.AppendLine();
+            
+            report.AppendLine("=== 当前状态 ===");
+            report.AppendLine($"流媒体服务: {(_streamingService?.IsRunning == true ? "运行中" : "已停止")}");
+            report.AppendLine($"UE进程数量: {_processManager?.GetRunningUEProcesses()?.Count() ?? 0}");
+            report.AppendLine();
+            
+            report.AppendLine("=== 实时数据 ===");
+            // 这里可以添加更多实时数据
+            report.AppendLine("注意: 当前显示的是模拟数据，生产环境中应从PeerStreamEnterprise API获取真实数据");
+            
+            return report.ToString();
+        }
+
+        #endregion
     }
 }

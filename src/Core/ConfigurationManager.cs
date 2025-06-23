@@ -11,10 +11,8 @@ namespace bestPixer2UE.Core
     /// Application configuration model - 包含完整的PeerStreamEnterprise配置
     /// </summary>
     public class AppConfiguration
-    {
-        // WPF应用基础配置
+    {        // WPF应用基础配置
         public string UEExecutablePath { get; set; } = "";
-        public int WebRTCPort { get; set; } = 11188;  // 匹配PeerStreamEnterprise默认端口
         public int UEWebSocketPort { get; set; } = 8081;
         public int ControlAPIPort { get; set; } = 8082;
         public string LogLevel { get; set; } = "Information";
@@ -23,7 +21,7 @@ namespace bestPixer2UE.Core
         public bool EnableDetailedLogging { get; set; } = true;
         public int ProcessCleanupTimeoutMs { get; set; } = 10000;
         
-        // PeerStreamEnterprise 主要配置
+        // PeerStreamEnterprise 主要配置 - 主信令端口（统一使用PORT）
         public int PORT { get; set; } = 11188;
         public bool Auth { get; set; } = false;
         public string UserPassword { get; set; } = "admin:dd2f757773f1fb6c690f3c1305c739bc4e8f35fd3e9eb69c4cdeb98d716f7eec";
@@ -51,11 +49,20 @@ namespace bestPixer2UE.Core
         public string StunServer { get; set; } = "stun:stun.l.google.com:19302";
         public string IceUsername { get; set; } = "1";
         public string IceCredential { get; set; } = "1";
-        
-        // 兼容性配置
+          // 兼容性配置
         public bool EnablePixelStreaming { get; set; } = true;
-        public string SignalingServerUrl { get; set; } = "ws://127.0.0.1:11188";  // 匹配PeerStreamEnterprise
+        
+        // 动态生成的信令服务器URL（基于PORT）
+        public string SignalingServerUrl => $"ws://127.0.0.1:{PORT}";
         public int TargetFPS { get; set; } = 30;
+        
+        // 向后兼容属性（已弃用，内部重定向到PORT）
+        [JsonIgnore]
+        public int WebRTCPort 
+        { 
+            get => PORT; 
+            set => PORT = value; 
+        }
     }
 
     /// <summary>
@@ -190,12 +197,10 @@ namespace bestPixer2UE.Core
                 !File.Exists(_configuration.UEExecutablePath))
             {
                 errorList.Add($"UE executable not found: {_configuration.UEExecutablePath}");
-            }
-
-            // Validate ports
-            if (_configuration.WebRTCPort <= 0 || _configuration.WebRTCPort > 65535)
+            }            // Validate ports
+            if (_configuration.PORT <= 0 || _configuration.PORT > 65535)
             {
-                errorList.Add($"Invalid WebRTC port: {_configuration.WebRTCPort}");
+                errorList.Add($"Invalid main signaling port: {_configuration.PORT}");
             }
 
             if (_configuration.UEWebSocketPort <= 0 || _configuration.UEWebSocketPort > 65535)
@@ -209,7 +214,7 @@ namespace bestPixer2UE.Core
             }
 
             // Check for port conflicts
-            var ports = new[] { _configuration.WebRTCPort, _configuration.UEWebSocketPort, _configuration.ControlAPIPort };
+            var ports = new[] { _configuration.PORT, _configuration.UEWebSocketPort, _configuration.ControlAPIPort };
             if (ports.Distinct().Count() != ports.Length)
             {
                 errorList.Add("Port conflict detected: All ports must be unique");

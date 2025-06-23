@@ -21,14 +21,14 @@ namespace bestPixer2UE
             // Initialize logging
             LoggingService.Initialize();
             
-            Log.Information("Application starting up...");
-
-            // Build host
+            Log.Information("Application starting up...");            // Build host
             _host = Host.CreateDefaultBuilder()                .ConfigureServices((context, services) =>
                 {
                     // Register services
-                    services.AddSingleton<ConfigurationManager>();                    services.AddSingleton<ProcessManager>();
+                    services.AddSingleton<bestPixer2UE.Core.ConfigurationManager>();
+                    services.AddSingleton<ProcessManager>();
                     services.AddSingleton<LoggingService>();
+                    services.AddSingleton<MonitoringService>();
                     services.AddSingleton<PeerStreamEnterpriseService>();
                     services.AddSingleton<StreamingManagementService>();
                     services.AddSingleton<UEControlService>();
